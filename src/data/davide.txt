@@ -1,0 +1,35 @@
+Titolo: Il Caso di Davide
+Tema: Impresa familiare, lealtà e autonomia personale
+
+A: “Cosa ti porta qui?”
+D: “Mio padre dà per scontato che io entrerò stabilmente nell’azienda di famiglia. Io non sono convinto.”
+A: “Quando dici che non sei convinto, cosa senti più forte: disinteresse, paura, oppure il desiderio di altro?”
+D: “Il desiderio di altro. Ma mi sento anche in colpa.”
+A: “Altro cosa?”
+D: “Mi piacerebbe aprire un piccolo studio mio. Fare qualcosa di più creativo.”
+A: “E in famiglia questa idea è già stata nominata?”
+D: “Non davvero. Faccio capire qualcosa, poi rientro nei ranghi.”
+A: “Come reagisci di solito quando senti la pressione?”
+D: “Dico che ci penserò, che prima devo imparare meglio, che non è il momento.”
+A: “Quindi prendi tempo.”
+D: “Sì. Così evito discussioni.”
+A: “E prendere tempo cosa produce?”
+D: “Nel breve mi calma. Nel lungo mi sento intrappolato.”
+A: “Tuo padre come legge il tuo prendere tempo?”
+D: “Come un sì quasi fatto. Pensa che mi stia preparando.”
+A: “Quindi il tuo modo di evitare il conflitto sta comunicando adesione.”
+D: “… Sì. Detta così sì.”
+A: “Che cosa temi succeda se parlassi in modo più chiaro?”
+D: “Che lui la viva come un tradimento. Ha costruito tutto da zero.”
+A: “Sembra che tu non stia scegliendo solo un lavoro, ma anche quale figlio essere.”
+D: “Esatto. È questo il punto.”
+A: “Nella tua esperienza, restare in azienda sarebbe una scelta tua o un modo per non deludere?”
+D: “Se sono sincero, adesso sarebbe soprattutto per non deludere.”
+A: “E aprire qualcosa di tuo sarebbe libertà piena o anche un rischio che ti spaventa?”
+D: “Entrambe. Mi spaventa molto, ma mi assomiglia di più.”
+A: “Correggimi se sbaglio: non sei bloccato perché non sai cosa vuoi, ma perché il costo relazionale di dirlo ti sembra altissimo.”
+D: “Sì. Io so già abbastanza bene cosa voglio.”
+A: “Quindi il problema non è decidere dentro di te, ma rendere dicibile una decisione che senti già.”
+D: “Sì.”
+A: “Preferisci che oggi ci fermiamo a osservare questo nodo o vuoi iniziare a capire come parlare con tuo padre senza entrare in guerra?”
+D: “Come parlarne senza entrare in guerra.”

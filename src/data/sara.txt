@@ -1,0 +1,35 @@
+Titolo: Il Caso di Sara
+Tema: Perfezionismo, procrastinazione e paura del giudizio
+
+A: “Cosa ti porta qui oggi?”
+S: “Devo finire la tesi, ma continuo a rimandare. Poi mi sento in colpa e recupero male.”
+A: “Quando dici che rimandi, cosa succede concretamente?”
+S: “Apro il file, leggo due righe, poi penso che non siano abbastanza buone. Allora chiudo e mi metto a fare altro.”
+A: “Che tipo di ‘altro’?”
+S: “Sistemo bibliografia, formatto titoli, cerco altri articoli… cose utili, ma non scrivo davvero.”
+A: “Quindi resti impegnata, ma non avanzi sulla parte più esposta?”
+S: “Sì, esatto. È come se stessi lavorando, ma senza rischiare.”
+A: “Rischiare cosa?”
+S: “Di scrivere una cosa mediocre. Se la mia relatrice la legge e fa schifo, mi vergogno.”
+A: “Il punto centrale sembra più l’esposizione del testo che la quantità di lavoro.”
+S: “Sì. Se non consegno niente, nessuno può dirmi che fa schifo.”
+A: “Quando riesci a lavorare bene, in quali condizioni succede?”
+S: “Quando mi do poco tempo e mi obbligo a buttare giù una bozza brutta.”
+A: “Quindi a volte funziona partire male, invece di partire perfetta.”
+S: “Sì, ma mi dà fastidio. Mi sembra di tradire il mio livello.”
+A: “Da quanto tempo ti accompagna questa idea di dover produrre qualcosa di impeccabile?”
+S: “Da sempre. Anche al liceo iniziavo tardi perché volevo fare la versione perfetta.”
+A: “Sei più bloccata perché non sai cosa scrivere o perché fai fatica ad accettare una prima versione imperfetta?”
+S: “La seconda. Le idee le ho. Non sopporto di vederle scritte male.”
+A: “Correggimi se sbaglio: non ti manca la competenza, ti blocca il fatto che la prima bozza non possa rappresentare subito il tuo standard.”
+S: “Sì, è proprio quello.”
+A: “Quindi la tua tentata soluzione è proteggere la qualità aspettando il momento ideale.”
+S: “Sì… ma quel momento non arriva mai.”
+A: “E cosa produce, alla fine, questa protezione?”
+S: “Mi fa arrivare in ritardo, scrivere peggio, e sentirmi più stupida.”
+A: “Quindi il modo in cui provi a evitare un testo mediocre aumenta la probabilità di ottenerlo.”
+S: “… Sì. Questa cosa fa male perché è vera.”
+A: “Tra consegnare una bozza imperfetta domani e inseguire una bozza perfetta che non arriva, quale opzione ti avvicina di più alla tesi finita?”
+S: “La bozza imperfetta domani.”
+A: “Preferisci che ci concentriamo ancora sul capire il blocco o che costruiamo un modo per produrre bozze brutte ma utili?”
+S: “Bozze brutte ma utili.”
