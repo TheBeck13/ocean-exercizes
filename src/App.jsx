@@ -3,6 +3,7 @@ import LOGO_SVG from "./public/logo.svg?raw";
 import StoryMap from "./exercises/StoryMap.jsx";
 import CinqueLenti from "./exercises/CinqueLenti.jsx";
 import LaFoto from "./exercises/LaFoto.jsx";
+import FattiSignificatiEmozioni from "./exercises/FattiSignificatiEmozioni.jsx";
 import DalVagoAlloSMART from "./exercises/DalVagoAlloSMART.jsx";
 import OggettiParlanti from "./exercises/OggettiParlanti.jsx";
 import BiasHunter from "./exercises/BiasHunter.jsx";
@@ -88,6 +89,7 @@ const PHASE_EXERCISES = {
     { id: "storymap",     name: "Story Map",   description: "Simulazione interattiva della fase Osserva: naviga la mappa delle consapevolezze del coachee scegliendo le domande giuste.", tag: "Simulazione" },
     { id: "cinque-lenti", name: "Le 5 Lenti",  description: "Allena la capacità di immaginare 5 rappresentazioni diverse della stessa situazione, allenando il perception–reaction system.", tag: "Riflessione" },
     { id: "la-foto",      name: "La Foto",     description: "Allena l'attenzione intenzionale osservando la stessa immagine per 7 giorni consecutivi e scoprendo sempre nuovi dettagli.", tag: "Diario" },
+    { id: "fatti-significati-emozioni", name: "Fatti / Significati / Emozioni", description: "Allena la distinzione tra osservazione e interpretazione compilando tre colonne su una micro-situazione prima come coach e poi come coachee, con confronto affiancato.", tag: "Analisi" },
   ],
   crea: [
     { id: "dal-vago-allo-smart", name: "Dal vago allo SMART", description: "Trasforma un desiderio vago in un obiettivo concreto e temporizzato, con scala di avanzamento e piano di micro-azioni.", tag: "Pianificazione" },
@@ -164,10 +166,13 @@ function PhaseScreen({ phaseId, onSelectExercise, onHome }) {
 
 /* ═══ ROOT APP ═══ */
 export default function App() {
-  // If URL contains ?session=ID, jump directly to CinqueLenti in student mode
+  // If URL contains ?session=ID → CinqueLenti in student mode
+  // If URL contains ?fse=ID → FattiSignificatiEmozioni in coach mode (joins coachee's session)
   const [screen, setScreen] = useState(() => {
-    const session = new URLSearchParams(window.location.search).get("session");
-    return session ? "exercise:cinque-lenti" : "home";
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fse")) return "exercise:fatti-significati-emozioni";
+    if (params.get("session")) return "exercise:cinque-lenti";
+    return "home";
   });
 
   const goHome = () => {
@@ -185,6 +190,7 @@ export default function App() {
   if (screen === "exercise:storymap")          return <StoryMap onHome={() => goPhase("osserva")} />;
   if (screen === "exercise:cinque-lenti")      return <CinqueLenti onHome={() => goPhase("osserva")} />;
   if (screen === "exercise:la-foto")           return <LaFoto onHome={() => goPhase("osserva")} />;
+  if (screen === "exercise:fatti-significati-emozioni") return <FattiSignificatiEmozioni onHome={() => goPhase("osserva")} />;
   if (screen === "exercise:dal-vago-allo-smart") return <DalVagoAlloSMART onHome={() => goPhase("crea")} />;
   if (screen === "exercise:oggetti-parlanti")    return <OggettiParlanti onHome={() => goPhase("crea")} />;
   if (screen === "exercise:bias-hunter")            return <BiasHunter onHome={() => goPhase("esponi")} />;

@@ -10,6 +10,14 @@ const PORT = process.env.API_PORT || 3001;
 //   { id, situation, status: 'active'|'closed', submissions: [{ studentId, lenses, submittedAt }], createdAt }
 const sessions = new Map();
 
+// In-memory Fatti/Significati/Emozioni session store: Map<sessionId, FseSession>
+// FseSession shape:
+//   { id, situation, status: 'waiting'|'active'|'complete',
+//     coachee: { fatti, significati, emozioni, submittedAt } | null,
+//     coach:   { fatti, significati, emozioni, submittedAt } | null,
+//     createdAt }
+const fseSessions = new Map();
+
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
@@ -92,6 +100,60 @@ const server = http.createServer(async (req, res) => {
       if (!session) return sendJson(res, 404, { error: 'Session not found' });
       session.status = 'closed';
       return sendJson(res, 200, { ok: true, submissions: session.submissions.length });
+    }
+
+    // ─── Fatti / Significati / Emozioni — two-role sessions ──────────────────
+
+    // POST /api/fse/sessions — coachee creates a session with the micro-situation
+    if (req.method === 'POST' && path === '/api/fse/sessions') {
+      const body = await readBody(req);
+      const id = randomBytes(3).toString('hex').toUpperCase();
+      fseSessions.set(id, {
+        id,
+        situation: (body.situation || '').trim(),
+        status: 'waiting',
+        coachee: null,
+        coach: null,
+        createdAt: Date.now(),
+      });
+      return sendJson(res, 201, { id });
+    }
+
+    // GET /api/fse/sessions/:id — both roles poll session state
+    if (req.method === 'GET' && /^\/api\/fse\/sessions\/[A-F0-9]{6}$/.test(path)) {
+      const id = path.split('/').pop();
+      const session = fseSessions.get(id);
+      if (!session) return sendJson(res, 404, { error: 'Session not found' });
+      return sendJson(res, 200, session);
+    }
+
+    // POST /api/fse/sessions/:id/join — coach joins (moves status waiting→active)
+    if (req.method === 'POST' && /^\/api\/fse\/sessions\/[A-F0-9]{6}\/join$/.test(path)) {
+      const id = path.split('/')[4];
+      const session = fseSessions.get(id);
+      if (!session) return sendJson(res, 404, { error: 'Session not found' });
+      if (session.status === 'waiting') session.status = 'active';
+      return sendJson(res, 200, { ok: true, status: session.status });
+    }
+
+    // POST /api/fse/sessions/:id/submit — role submits their 3 columns
+    if (req.method === 'POST' && /^\/api\/fse\/sessions\/[A-F0-9]{6}\/submit$/.test(path)) {
+      const id = path.split('/')[4];
+      const session = fseSessions.get(id);
+      if (!session) return sendJson(res, 404, { error: 'Session not found' });
+      const body = await readBody(req);
+      if (body.role !== 'coach' && body.role !== 'coachee') {
+        return sendJson(res, 400, { error: 'Invalid role' });
+      }
+      session[body.role] = {
+        fatti: body.data?.fatti || '',
+        significati: body.data?.significati || '',
+        emozioni: body.data?.emozioni || '',
+        submittedAt: Date.now(),
+      };
+      if (session.coach && session.coachee) session.status = 'complete';
+      else if (session.status === 'waiting') session.status = 'active';
+      return sendJson(res, 200, { ok: true, status: session.status });
     }
 
     sendJson(res, 404, { error: 'Not found' });

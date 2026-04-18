@@ -19,9 +19,10 @@ Both are independently deployable. The React version is preferred for production
 - **Client**: Steering Change (steeringchange.com) — coaching/change management consultancy
 - **Users**: Trainee coaches learning the O.C.E.A.N. methodology
 - **Language**: All UI text is in **Italian**. Variable names and code comments are in English.
+- **Exercizes Specifications**: The complete definition of every exercize can be found in the folder `data/Esercizi` 
 - **Design reference**: Figma file "ObserveStoryMap.fig" (proprietary binary kiwi format, not parseable). Key design screenshots were used instead.
 - **Logo**: Steering Change steering wheel icon — `logo.svg`, embedded inline as `LOGO_SVG` constant
-- **Lightbulb icon**: `lampadina.svg` — used on leaf nodes, embedded inline as `BULB_SVG` constant
+- **Lightbulb icon**: `bulb.svg` — used on leaf nodes, embedded inline as `BULB_SVG` constant
 
 ---
 
