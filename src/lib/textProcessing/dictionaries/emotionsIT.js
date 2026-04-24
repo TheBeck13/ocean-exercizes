@@ -1,0 +1,136 @@
+// Lessico NRC italiano ridotto — 8 emozioni di Plutchik.
+// Non avendo accesso ai pickle del prof, è una ricostruzione basata
+// su frequenze tipiche dei contesti di coaching. Ogni parola può
+// appartenere a più emozioni (es. "sorpresa" attiva surprise + joy).
+
+export const EMOTIONS_IT = {
+  anger: [
+    "rabbia","arrabbiato","arrabbiata","furia","furioso","furiosa","ira","irato",
+    "indignato","incavolato","incazzato","incazzata","irritato","irritata","irritazione",
+    "seccato","seccata","scocciato","scocciata","infastidito","infastidita","fastidio",
+    "frustrato","frustrata","frustrazione","esasperato","esasperata","esasperazione",
+    "odio","odiare","odiato","odiata","rancore","risentimento","astio","rivalsa",
+    "urlare","urlo","sbattere","gridare","grido","aggressivo","aggressiva","violento",
+    "scontro","litigio","litigare","conflitto","discussione","rissa","nervoso","nervosismo",
+    "acido","amaro","velenoso","spietato","vendetta","protesta","rivolta","ribellione",
+  ],
+  disgust: [
+    "disgusto","disgustoso","disgustosa","schifo","schifoso","schifosa","ripugnante",
+    "nausea","nauseante","repulsione","repellente","rivoltante","sgradevole",
+    "sporco","sporca","marcio","marcia","putrido","putrida","puzza","puzzare","puzzolente",
+    "ributtante","orrendo","orrenda","raccapricciante","orripilante","abominevole",
+    "meschino","meschina","squallido","squallida","viscido","viscida","insopportabile",
+    "intollerabile","disprezzare","disprezzo","odiare","rigettare","rifiutare","rigettato",
+    "immorale","ipocrita","ipocrisia","falsità","bugia","menzogna","manipolare","manipolazione",
+  ],
+  fear: [
+    "paura","impaurito","impaurita","timore","timoroso","timorosa","spaventato","spaventata",
+    "terrore","terrorizzato","terrorizzata","panico","orrore","angoscia","angosciato","angosciante",
+    "ansia","ansioso","ansiosa","preoccupazione","preoccupato","preoccupata","apprensione",
+    "nervoso","tensione","teso","tesa","agitato","agitata","agitazione","inquieto","inquieta",
+    "incertezza","incerto","incerta","dubbio","dubbioso","esitare","esitante","esitazione",
+    "tremare","tremante","brivido","sudare","fragile","vulnerabile","insicuro","insicurezza",
+    "pericolo","pericoloso","pericolosa","minaccia","minaccioso","rischio","rischioso",
+    "evitare","fuggire","nascondersi","nascosto","intimidito","intimorito","impietrito",
+    "rischiare","avversità","catastrofe","fobia","paralizzato","paralisi","bloccato","bloccata",
+  ],
+  joy: [
+    "gioia","felice","felicità","contento","contenta","soddisfatto","soddisfatta","soddisfazione",
+    "allegria","allegro","allegra","sorriso","sorridere","sorridente","ridere","risata",
+    "entusiasmo","entusiasta","entusiasmante","eccitato","eccitata","euforia","euforico","euforica",
+    "amore","amare","amato","amata","adorare","adorato","adorata","adorabile",
+    "divertirsi","divertente","divertimento","piacere","piacevole","godere","godimento",
+    "celebrare","celebrazione","festeggiare","festa","festoso","trionfo","trionfare",
+    "bellezza","bellissimo","bellissima","meraviglia","meraviglioso","meravigliosa","splendido","splendida",
+    "fortunato","fortunata","fortuna","benessere","sereno","serena","serenità","pace","pacifico",
+    "gratitudine","grato","grata","riconoscente","realizzato","realizzata","appagato","appagata",
+    "vibrante","radiante","luminoso","luminosa","solare","brillante","vivace","vivacità",
+  ],
+  trust: [
+    "fiducia","fiducioso","fiduciosa","affidabile","affidare","affidamento","sicuro","sicura",
+    "sicurezza","certo","certa","certezza","solido","solida","stabile","stabilità",
+    "leale","lealtà","onesto","onesta","onestà","sincero","sincera","sincerità","vero","vera",
+    "autentico","autentica","autenticità","genuino","genuina","trasparente","trasparenza",
+    "fedele","fedeltà","dedicato","dedicata","dedizione","devoto","devota","devozione",
+    "rispetto","rispettare","rispettato","rispettoso","rispettosa","stima","stimato","stimata",
+    "apprezzare","apprezzato","apprezzata","apprezzamento","riconoscere","riconoscimento",
+    "amico","amica","amicizia","alleato","alleata","alleanza","complice","complicità",
+    "collaborare","collaborazione","collaboratore","squadra","gruppo","insieme","sostegno",
+    "sostenere","sostenuto","supporto","supportare","aiutare","aiuto","proteggere","protezione",
+  ],
+  surprise: [
+    "sorpresa","sorpreso","sorpresa","sorprendente","stupito","stupita","stupore","stupire",
+    "stupefatto","stupefatta","stupefacente","meravigliato","meravigliata","meraviglia",
+    "incredibile","inaspettato","inaspettata","insperato","insperata","impensabile","impensato",
+    "inatteso","inattesa","inaudito","inaudita","straordinario","straordinaria","incredibilmente",
+    "improvviso","improvvisa","improvvisamente","all'improvviso","subitaneo","subitanea",
+    "choc","shock","scioccato","sciccata","sbalordito","sbalordita","sbigottito","sbigottita",
+    "spiazzato","spiazzata","spiazzare","spiazzante","scombussolato","scombussolata",
+    "wow","ooh","ah","eh","boh","davvero","veramente","incredibile","inimmaginabile",
+    "rivelazione","rivelare","scoperta","scoprire","scoperto","scoperta","miracolo","miracoloso",
+  ],
+  anticipation: [
+    "aspettativa","aspettare","attesa","atteso","attesa","attendere","previsione","prevedere",
+    "prepararsi","preparazione","preparato","preparata","pianificare","pianificazione","piano","pianificato",
+    "futuro","domani","prossimo","prossima","imminente","vicino","vicina","presto","prima",
+    "desiderio","desiderare","desiderato","desiderata","volere","voluto","voluta","bramare",
+    "speranza","sperare","sperato","sperata","sognare","sogno","sognato","sognata","aspirare","aspirazione",
+    "progetto","progettare","progettato","progettata","obiettivo","obiettivi","traguardo","meta","destinazione",
+    "opportunità","possibilità","potenziale","prospettiva","prospettive","orizzonte","visione",
+    "curiosità","curioso","curiosa","interesse","interessato","interessata","interessante",
+    "motivazione","motivato","motivata","intenzione","intenzionale","determinazione","determinato","determinata",
+    "eccitazione","eccitato","eccitata","impaziente","impazienza","frenetico","frenetica","slancio",
+  ],
+  sadness: [
+    "tristezza","triste","infelice","infelicità","malinconia","malinconico","malinconica",
+    "afflitto","afflitta","afflizione","sconsolato","sconsolata","depresso","depressa","depressione",
+    "abbattuto","abbattuta","scoraggiato","scoraggiata","scoraggiamento","demotivato","demotivata",
+    "deluso","delusa","delusione","amareggiato","amareggiata","amarezza","rammaricato","rammaricata",
+    "solo","sola","solitudine","isolato","isolata","isolamento","abbandonato","abbandonata","abbandono",
+    "dolore","doloroso","dolorosa","sofferenza","soffrire","sofferto","sofferta","ferita","ferito",
+    "piangere","pianto","lacrima","lacrime","singhiozzo","gemito","lamento","lamentarsi",
+    "pentito","pentita","pentimento","rimorso","rimpianto","rimpiangere","nostalgia","nostalgico","nostalgica",
+    "vuoto","vuota","vuotezza","inutile","inutilità","insignificante","fallimento","fallito","fallita",
+    "perdere","perduto","perduta","smarrito","smarrita","smarrimento","morte","lutto","grave","gravità",
+    "disperazione","disperato","disperata","sconforto","sconfortato","sconfortata","desolazione","desolato","desolata",
+  ],
+};
+
+// VAD (Valence-Arousal-Dominance) scores per un subset di parole chiave.
+// Approccio del prof nel suo textanalysis.py/NRCvad.pkl.
+// Valori in [0, 1]. Lista ridotta, sufficiente per indicazione di massima.
+export const VAD_IT = {
+  "amore":     { valence: 1.00, arousal: 0.75, dominance: 0.65 },
+  "gioia":     { valence: 0.98, arousal: 0.72, dominance: 0.70 },
+  "felice":    { valence: 0.95, arousal: 0.65, dominance: 0.70 },
+  "sicuro":    { valence: 0.80, arousal: 0.40, dominance: 0.85 },
+  "fiducia":   { valence: 0.85, arousal: 0.45, dominance: 0.75 },
+  "calmo":     { valence: 0.75, arousal: 0.20, dominance: 0.65 },
+  "sereno":    { valence: 0.80, arousal: 0.25, dominance: 0.65 },
+  "sorpresa":  { valence: 0.70, arousal: 0.85, dominance: 0.45 },
+  "paura":     { valence: 0.10, arousal: 0.80, dominance: 0.20 },
+  "ansia":     { valence: 0.15, arousal: 0.80, dominance: 0.25 },
+  "rabbia":    { valence: 0.15, arousal: 0.90, dominance: 0.70 },
+  "tristezza": { valence: 0.10, arousal: 0.40, dominance: 0.25 },
+  "triste":    { valence: 0.10, arousal: 0.35, dominance: 0.25 },
+  "disgusto":  { valence: 0.10, arousal: 0.65, dominance: 0.50 },
+  "odio":      { valence: 0.05, arousal: 0.85, dominance: 0.60 },
+  "dolore":    { valence: 0.10, arousal: 0.65, dominance: 0.25 },
+  "solo":      { valence: 0.20, arousal: 0.35, dominance: 0.20 },
+  "forza":     { valence: 0.80, arousal: 0.70, dominance: 0.90 },
+  "debole":    { valence: 0.20, arousal: 0.30, dominance: 0.10 },
+  "coraggio":  { valence: 0.85, arousal: 0.75, dominance: 0.90 },
+};
+
+// Intensità emotiva (Mohammad 2018) per un piccolo subset: indica "quanto forte"
+// quella parola esprime l'emozione associata. Usato quando vuoi pesare, non solo contare.
+export const EMOTION_INTENSITY_IT = {
+  anger:        { "furia": 0.95, "ira": 0.90, "rabbia": 0.85, "arrabbiato": 0.75, "irritato": 0.55, "seccato": 0.35, "fastidio": 0.30 },
+  fear:         { "terrore": 0.95, "panico": 0.90, "paura": 0.75, "ansia": 0.65, "timore": 0.55, "preoccupazione": 0.45, "apprensione": 0.35 },
+  joy:          { "euforia": 0.95, "gioia": 0.85, "felicità": 0.80, "allegria": 0.70, "contento": 0.55, "sereno": 0.45, "soddisfatto": 0.55 },
+  sadness:      { "disperazione": 0.95, "depressione": 0.90, "tristezza": 0.75, "infelice": 0.70, "malinconia": 0.55, "delusione": 0.50, "rammarico": 0.35 },
+  trust:        { "fiducia": 0.85, "fedeltà": 0.80, "lealtà": 0.75, "sincerità": 0.65, "stima": 0.60, "rispetto": 0.55 },
+  disgust:      { "ribrezzo": 0.95, "disgusto": 0.85, "schifo": 0.75, "nausea": 0.65, "ripugnanza": 0.80, "repulsione": 0.75 },
+  surprise:     { "stupore": 0.85, "sorpresa": 0.65, "meraviglia": 0.75, "shock": 0.90, "choc": 0.90 },
+  anticipation: { "impazienza": 0.75, "desiderio": 0.65, "speranza": 0.55, "aspettativa": 0.50, "motivazione": 0.55, "curiosità": 0.40 },
+};

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Peer from "peerjs";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, EmotionsRadar, KeywordRanking } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -96,6 +97,61 @@ function LensForm({ lens, step, data, onChange }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ═══ CLASS ANALYTICS (risposte aggregate di tutti gli studenti) ═══ */
+function ClassAnalytics({ sessionData, lenses }) {
+  const { allTexts, perLensTexts, groupsByLens } = useMemo(() => {
+    const all = [];
+    const perLens = {};
+    const groups = {};
+    for (const lens of lenses) {
+      const collected = [];
+      for (const sub of sessionData.submissions || []) {
+        const l = sub.lenses?.[lens.id];
+        if (!l) continue;
+        const t = [l.important, l.reaction].filter(Boolean).join(". ");
+        if (t.trim()) collected.push(t);
+      }
+      perLens[lens.id] = collected;
+      groups[lens.label] = collected;
+      all.push(...collected);
+    }
+    return { allTexts: all, perLensTexts: perLens, groupsByLens: groups };
+  }, [sessionData, lenses]);
+
+  if (allTexts.length === 0) return null;
+
+  const series = lenses
+    .filter(l => perLensTexts[l.id].length > 0)
+    .map(l => ({ label: l.label, color: l.color, texts: perLensTexts[l.id] }));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        Analisi aggregata della classe
+      </div>
+      <WordCloud
+        texts={allTexts}
+        title="Parole più ricorrenti — tutte le lenti"
+        palette="bold5"
+        maxWords={50}
+      />
+      {series.length >= 2 && (
+        <EmotionsRadar
+          series={series}
+          title="Emozioni per lente — come cambia lo sguardo"
+        />
+      )}
+      {Object.keys(groupsByLens).length >= 2 && (
+        <KeywordRanking
+          groups={groupsByLens}
+          title="Top concetti per lente (TF-IDF)"
+          topN={5}
+        />
+      )}
     </div>
   );
 }
@@ -381,11 +437,8 @@ function TrainerFlow({ onHome }) {
                 <div style={{ fontSize: 15, color: "#1A2B3C", lineHeight: 1.55 }}>{sessionData.situation}</div>
               </div>
 
-              <div style={{ background: "#F9FAFB", borderRadius: 12, border: "1.5px dashed #D1D5DB", padding: "18px 20px", marginBottom: 24, textAlign: "center" }}>
-                <div style={{ fontSize: 14, color: "#9CA3AF", fontStyle: "italic" }}>
-                  Inserisci qui feature del prof — Analisi completa con risposte di tutti gli studenti
-                </div>
-              </div>
+              <ClassAnalytics sessionData={sessionData} lenses={LENSES} />
+
 
               {sessionData.submissions.length === 0 && (
                 <div style={{ textAlign: "center", padding: "40px 20px", color: "#9CA3AF", fontSize: 15 }}>Nessuno studente ha inviato risposte.</div>

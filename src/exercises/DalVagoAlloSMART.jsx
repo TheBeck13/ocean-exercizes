@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, KeywordRanking } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -546,10 +547,28 @@ export default function DalVagoAlloSMART({ onHome }) {
             </div>
           )}
 
-          {/* placeholder */}
-          <div style={{ background: "#FFFBEB", border: "1.5px dashed #FCD34D", borderRadius: 14, padding: "18px 24px", fontSize: 14, color: "#92400E" }}>
-            Inserisci qui feature del prof — word cloud delle parole chiave nelle risposte SMART
-          </div>
+          {/* Analisi testuale automatica delle risposte SMART */}
+          {(() => {
+            const smartTexts = SMART_STEPS.map(s => smart[s.key]).filter(t => t && t.trim());
+            const actionTexts = validActions.map(a => a.text).filter(Boolean);
+            const allTexts = [...smartTexts, ...actionTexts];
+            if (allTexts.length === 0) return null;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 20 }}>
+                <WordCloud
+                  texts={allTexts}
+                  title="Parole chiave — obiettivo SMART e micro-azioni"
+                  palette="byfreq"
+                  maxWords={35}
+                />
+                <KeywordRanking
+                  texts={allTexts}
+                  title="Top concetti (TF-IDF)"
+                  topN={8}
+                />
+              </div>
+            );
+          })()}
         </div>
       </main>
     </div>

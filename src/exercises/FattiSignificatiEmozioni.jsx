@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Peer from "peerjs";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, SentimentPanel, EmotionsRadar } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -197,6 +198,57 @@ function WaitingPanel({ title, subtitle }) {
   );
 }
 
+function AnalyticsPanel({ coach, coachee }) {
+  const allResponses = useMemo(() => ([
+    coach.fatti, coach.significati, coach.emozioni,
+    coachee.fatti, coachee.significati, coachee.emozioni,
+  ].filter(t => t && t.trim())), [coach, coachee]);
+
+  const interpretiveTexts = useMemo(() => ([
+    coach.significati, coach.emozioni,
+    coachee.significati, coachee.emozioni,
+  ].filter(t => t && t.trim())), [coach, coachee]);
+
+  const coachTexts = useMemo(
+    () => [coach.fatti, coach.significati, coach.emozioni].filter(Boolean),
+    [coach]
+  );
+  const coacheeTexts = useMemo(
+    () => [coachee.fatti, coachee.significati, coachee.emozioni].filter(Boolean),
+    [coachee]
+  );
+
+  if (allResponses.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>
+        Analisi testuale automatica
+      </div>
+
+      <WordCloud
+        texts={allResponses}
+        title="Word Cloud — parole più usate"
+        palette="byfreq"
+        maxWords={40}
+      />
+
+      <SentimentPanel
+        texts={interpretiveTexts}
+        title={"Sentiment — Significati + Emozioni"}
+      />
+
+      <EmotionsRadar
+        series={[
+          { label: "Coach",   color: ROLES.coach.color,   texts: coachTexts },
+          { label: "Coachee", color: ROLES.coachee.color, texts: coacheeTexts },
+        ]}
+        title="Emozioni — Coach vs Coachee"
+      />
+    </div>
+  );
+}
+
 function CompletionResults({ session, onHome, onRestart }) {
   const coach   = session.coach   || EMPTY();
   const coachee = session.coachee || EMPTY();
@@ -243,18 +295,8 @@ function CompletionResults({ session, onHome, onRestart }) {
         </ol>
       </div>
 
-      {/* Professor feature placeholders */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-        <div style={{ background: "#FFFBEB", borderRadius: 12, border: "1.5px dashed #F59E0B", padding: "16px 20px", textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "#92400E", fontStyle: "italic" }}>Implementa qui funzione del prof — <strong>Word Cloud</strong> delle risposte di coach e coachee</div>
-        </div>
-        <div style={{ background: "#FFFBEB", borderRadius: 12, border: "1.5px dashed #F59E0B", padding: "16px 20px", textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "#92400E", fontStyle: "italic" }}>Implementa qui funzione del prof — <strong>Text Sentiment Analysis</strong> sulle colonne "Significati" ed "Emozioni"</div>
-        </div>
-        <div style={{ background: "#FFFBEB", borderRadius: 12, border: "1.5px dashed #F59E0B", padding: "16px 20px", textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "#92400E", fontStyle: "italic" }}>Implementa qui funzione del prof — <strong>Emotions Analysis</strong> comparata tra le due schede</div>
-        </div>
-      </div>
+      {/* Analisi testuale automatica */}
+      <AnalyticsPanel coach={coach} coachee={coachee} />
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {onRestart && <button onClick={onRestart} style={{ background: BLUE, color: "#FFF", border: "none", borderRadius: 10, padding: "11px 22px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: FONT }} onMouseEnter={e => e.currentTarget.style.background = BLUE_DARK} onMouseLeave={e => e.currentTarget.style.background = BLUE}>Nuova sessione</button>}

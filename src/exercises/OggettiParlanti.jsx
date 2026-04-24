@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, SentimentPanel } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -328,10 +329,28 @@ export default function OggettiParlanti({ onHome }) {
               </div>
             )}
 
-            {/* placeholder */}
-            <div style={{ background: "#FFFBEB", border: "1.5px dashed #FCD34D", borderRadius: 14, padding: "18px 24px", fontSize: 14, color: "#92400E", marginBottom: 24 }}>
-              Inserisci qui feature del prof — Sentiment analysis e word cloud per evidenziare risorse e blocchi nelle risposte
-            </div>
+            {(() => {
+              const answerTexts = DOMANDE.map(d => answers[d.key]).filter(t => t && t.trim());
+              const allTexts = coachQuestions.trim()
+                ? [...answerTexts, coachQuestions]
+                : answerTexts;
+              if (allTexts.length === 0) return null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                  <WordCloud
+                    texts={allTexts}
+                    title={`Word Cloud — ${selectedObj.label}`}
+                    palette="byfreq"
+                    maxWords={40}
+                    extraStopwords={[selectedObj.label.toLowerCase()]}
+                  />
+                  <SentimentPanel
+                    texts={answerTexts}
+                    title="Sentiment — risorse vs blocchi nelle risposte"
+                  />
+                </div>
+              );
+            })()}
 
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
               <button

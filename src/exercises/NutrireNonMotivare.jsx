@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, ThemeClusters } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -340,10 +341,40 @@ export default function NutrireNonMotivare({ onHome }) {
             })}
           </div>
 
-          {/* placeholder */}
-          <div style={{ background: "#FFFBEB", border: "1.5px dashed #FCD34D", borderRadius: 14, padding: "18px 24px", fontSize: 14, color: "#92400E" }}>
-            Inserisci qui feature del prof — raggruppamento per similarity delle metafore e analisi delle aree tematiche più usate (natura, vita quotidiana, costruzione, ecc.)
-          </div>
+          {(() => {
+            const metaphorDocs = PHRASES
+              .filter(ph => categories[ph.id] === "story" || rewrites[ph.id]?.trim())
+              .map(ph => ({
+                label: CATEGORIES.find(c => c.id === categories[ph.id])?.label || "Non classificata",
+                text: [ph.text, rewrites[ph.id]].filter(Boolean).join(" — "),
+              }));
+
+            const allRewrites = PHRASES
+              .map(ph => rewrites[ph.id])
+              .filter(t => t && t.trim());
+
+            if (metaphorDocs.length === 0 && allRewrites.length === 0) return null;
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                {allRewrites.length > 0 && (
+                  <WordCloud
+                    texts={allRewrites}
+                    title="Aree tematiche nelle riscritture nutrienti"
+                    palette="bold5"
+                    maxWords={35}
+                  />
+                )}
+                {metaphorDocs.length >= 2 && (
+                  <ThemeClusters
+                    documents={metaphorDocs}
+                    k={Math.min(3, metaphorDocs.length)}
+                    title="Raggruppamento metafore per similarity"
+                  />
+                )}
+              </div>
+            );
+          })()}
         </div>
       </main>
     </div>

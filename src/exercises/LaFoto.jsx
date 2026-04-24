@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { SimilarityMatrix, PerDocumentKeywords } from "../components/analytics/index.js";
 
 const BG = "#F8FBFF";
 const BLUE = "#0099E6";
@@ -310,11 +311,26 @@ export default function LaFoto({ onHome }) {
               </div>
             </div>
 
-            <div style={{ background: "#F9FAFB", borderRadius: 12, border: "1.5px dashed #D1D5DB", padding: "18px 20px", textAlign: "center", marginBottom: 24 }}>
-              <div style={{ fontSize: 14, color: "#9CA3AF", fontStyle: "italic" }}>
-                Inserisci qui feature del prof — Dissimilarity score e keyword analysis per ogni osservazione
-              </div>
-            </div>
+            {(() => {
+              const dayDocs = Array.from({ length: TOTAL_DAYS }, (_, i) => i + 1)
+                .map(day => ({ label: `Giorno ${day}`, text: (entries[day] || "").trim() }))
+                .filter(d => d.text.length > 0);
+              if (dayDocs.length < 2) return null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                  <SimilarityMatrix
+                    documents={dayDocs}
+                    title="Dissimilarità tra osservazioni — quanto è cambiato il tuo sguardo"
+                    mode="similarity"
+                  />
+                  <PerDocumentKeywords
+                    documents={dayDocs}
+                    topN={5}
+                    title="Keyword TF-IDF — concetti distintivi di ogni giorno"
+                  />
+                </div>
+              );
+            })()}
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, EmotionsRadar, SentimentPanel } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -169,6 +170,46 @@ function BiasCard({ bias, entry, onChange, expanded, onToggle }) {
   );
 }
 
+function BiasAnalytics({ entries }) {
+  const allTexts = useMemo(() => {
+    const out = [];
+    for (const b of BIASES) {
+      const e = entries[b.id];
+      if (!e) continue;
+      for (const k of ["example","decision","alternative","impact"]) {
+        if (e[k] && e[k].trim()) out.push(e[k]);
+      }
+    }
+    return out;
+  }, [entries]);
+
+  const impactTexts = useMemo(() => {
+    return BIASES.map(b => entries[b.id]?.impact).filter(t => t && t.trim());
+  }, [entries]);
+
+  if (allTexts.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        Analisi testuale automatica
+      </div>
+      <WordCloud
+        texts={allTexts}
+        title="Parole ricorrenti nei bias analizzati"
+        palette="byfreq"
+        maxWords={40}
+      />
+      {impactTexts.length > 0 && (
+        <>
+          <SentimentPanel texts={impactTexts} title={'Sentiment — colonna "Impatto del bias"'} />
+          <EmotionsRadar texts={impactTexts} title='Emozioni nelle descrizioni di impatto' />
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ═══ SUMMARY ═══ */
 function Summary({ entries, onBack, onRestart }) {
   const filledCount = BIASES.filter(b => isFilled(entries[b.id])).length;
@@ -221,10 +262,9 @@ function Summary({ entries, onBack, onRestart }) {
         </div>
       )}
 
-      {/* placeholder */}
-      <div style={{ background: "#FFFBEB", border: "1.5px dashed #FCD34D", borderRadius: 14, padding: "18px 24px", fontSize: 14, color: "#92400E", marginBottom: 24 }}>
-        Inserisci qui feature del prof — Word Cloud e Text Emotions Analysis per evidenziare parole associate a conseguenze negative nelle risposte
-      </div>
+      <BiasAnalytics entries={entries} />
+
+
 
       <div style={{ display: "flex", gap: 12 }}>
         <button

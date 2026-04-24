@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
+import { WordCloud, KeywordRanking, SimilarityMatrix } from "../components/analytics/index.js";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
@@ -392,10 +393,53 @@ export default function DiarioMicroAbitudini({ onHome }) {
             </div>
           )}
 
-          {/* placeholder */}
-          <div style={{ background: "#FFFBEB", border: "1.5px dashed #FCD34D", borderRadius: 14, padding: "18px 24px", fontSize: 14, color: "#92400E" }}>
-            Inserisci qui feature del prof — analisi del riepilogo settimanale con pattern ricorrenti e confronto tra sessioni
-          </div>
+          {(() => {
+            const allTexts = episodes
+              .flatMap(ep => [ep.context, ep.microChange])
+              .filter(t => t && t.trim());
+            if (allTexts.length === 0) return null;
+
+            const byMode = {};
+            for (const ep of episodes) {
+              const key = COMM_MODES.find(m => m.id === ep.commMode)?.label || "Altro";
+              const t = [ep.context, ep.microChange].filter(Boolean).join(" ");
+              if (!t.trim()) continue;
+              (byMode[key] ||= []).push(t);
+            }
+
+            const sessionDocs = episodes
+              .filter(ep => (ep.context || ep.microChange || "").trim())
+              .slice(0, 12)
+              .map((ep, i) => ({
+                label: formatDate(ep.timestamp),
+                text: [ep.context, ep.microChange].filter(Boolean).join(". "),
+              }));
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 20 }}>
+                <WordCloud
+                  texts={allTexts}
+                  title="Pattern ricorrenti — parole che tornano nel diario"
+                  palette="byfreq"
+                  maxWords={40}
+                />
+                {Object.keys(byMode).length >= 2 && (
+                  <KeywordRanking
+                    groups={byMode}
+                    title="Concetti dominanti per modalità comunicativa"
+                    topN={6}
+                  />
+                )}
+                {sessionDocs.length >= 3 && (
+                  <SimilarityMatrix
+                    documents={sessionDocs}
+                    title="Confronto tra episodi — somiglianze testuali"
+                    mode="similarity"
+                  />
+                )}
+              </div>
+            );
+          })()}
         </div>
       </main>
     </div>
