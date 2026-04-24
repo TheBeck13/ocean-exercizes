@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import Peer from "peerjs";
 import Navbar from "../components/Navbar.jsx";
 
 /* ═══ CONSTANTS ═══ */
@@ -7,6 +8,14 @@ const BLUE = "#0099E6";
 const BLUE_DARK = "#0077B3";
 const FONT = "'Source Sans 3', sans-serif";
 const STYLE_RESET = `textarea { outline: none; } ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #C0C8D0; border-radius: 3px; } @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }`;
+
+const PEER_PREFIX = "fse";
+const CODE_ALPHABET = "ABCDEF0123456789";
+const genShortCode = () => {
+  let s = "";
+  for (let i = 0; i < 6; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return s;
+};
 
 const COLS = [
   {
@@ -63,12 +72,6 @@ const DEBRIEF_QUESTIONS = [
 
 const EMPTY = () => ({ fatti: "", significati: "", emozioni: "" });
 
-/* ═══ API HELPERS ═══ */
-const api = {
-  post: (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => { if (!r.ok) throw r.status; return r.json(); }),
-  get:  (url)       => fetch(url).then(r => { if (!r.ok) throw r.status; return r.json(); }),
-};
-
 /* ═══ TEXT ANALYSIS ═══ */
 const ESCAPE_REGEX = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const BUILD_PATTERN = () => new RegExp(`\\b(${INTERPRETATIVE_WORDS.map(ESCAPE_REGEX).join("|")})\\b`, "gi");
@@ -101,6 +104,15 @@ function HighlightedText({ text }) {
 }
 
 /* ═══ SHARED UI ═══ */
+function ReloadWarning() {
+  return (
+    <div style={{ background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#92400E", fontWeight: 600, display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <span style={{ fontSize: 16, lineHeight: 1.2 }}>⚠️</span>
+      <span>ATTENZIONE: non ricaricare la pagina, perderesti tutti i tuoi progressi di quest'esercizio!</span>
+    </div>
+  );
+}
+
 function SituationBox({ situation }) {
   return (
     <div style={{ background: "#FFF", borderRadius: 12, padding: "14px 18px", marginBottom: 20, border: "1px solid #E2E8F0" }}>
@@ -194,6 +206,7 @@ function CompletionResults({ session, onHome, onRestart }) {
 
   return (
     <div>
+      <ReloadWarning />
       <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>✓ Entrambi hanno inviato</div>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Coachee vs Coach</h1>
       <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 22, lineHeight: 1.55 }}>
@@ -251,70 +264,110 @@ function CompletionResults({ session, onHome, onRestart }) {
   );
 }
 
-/* ═══ COACHEE FLOW (creates session) ═══ */
+/* ═══ COACHEE FLOW (initiator peer) ═══ */
 function CoacheeFlow({ onHome }) {
   const scrollRef = useRef(null);
+  const peerRef = useRef(null);
+  const connRef = useRef(null);
+
   const [phase, setPhase] = useState("setup"); // setup | waiting | filling | submitted | complete
   const [situation, setSituation] = useState("");
-  const [sessionId, setSessionId] = useState(null);
+  const [shortCode, setShortCode] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const [sessionData, setSessionData] = useState(null);
-  const [data, setData] = useState(EMPTY);
+  const [coacheeData, setCoacheeData] = useState(EMPTY);
+  const [coachData, setCoachData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [phase]);
 
-  const handleStart = async () => {
-    setError("");
-    try {
-      const res = await api.post("/api/fse/sessions", { situation });
-      setSessionId(res.id);
+  // Peer cleanup on unmount
+  useEffect(() => () => {
+    if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) { /* noop */ } peerRef.current = null; }
+  }, []);
+
+  // Transition to complete as soon as both submissions are present
+  useEffect(() => {
+    if (coachData && phase === "submitted") setPhase("complete");
+  }, [coachData, phase]);
+
+  const createPeer = () => {
+    const code = genShortCode();
+    const peerId = `${PEER_PREFIX}-${code}`;
+    const peer = new Peer(peerId);
+    peerRef.current = peer;
+
+    peer.on("open", () => {
+      setShortCode(code);
       setPhase("waiting");
-    } catch {
-      setError("Impossibile avviare la sessione. Verifica che il server sia attivo.");
-    }
+    });
+
+    peer.on("error", (err) => {
+      if (err.type === "unavailable-id") {
+        try { peer.destroy(); } catch (e) { /* noop */ }
+        peerRef.current = null;
+        createPeer();
+      } else {
+        setError("Errore di connessione peer-to-peer. Controlla la tua rete e riprova.");
+      }
+    });
+
+    peer.on("connection", (conn) => {
+      connRef.current = conn;
+      conn.on("open", () => {
+        conn.send({ type: "situation", situation });
+        setPhase(prev => prev === "waiting" ? "filling" : prev);
+      });
+      conn.on("data", (msg) => {
+        if (msg && msg.type === "submission") setCoachData(msg.data);
+      });
+      conn.on("close", () => { connRef.current = null; });
+    });
   };
 
-  // Build QR code once sessionId is known
+  const handleStart = () => {
+    setError("");
+    createPeer();
+  };
+
+  // Generate QR once shortCode is known
   useEffect(() => {
-    if (!sessionId) return;
-    const url = `${window.location.origin}/?fse=${sessionId}`;
+    if (!shortCode) return;
+    const url = `${window.location.origin}${window.location.pathname}?fse=${shortCode}`;
     import("qrcode").then(({ default: QRCode }) => {
       QRCode.toDataURL(url, { width: 220, margin: 1, color: { dark: "#0077B3", light: "#F8FBFF" } }).then(setQrDataUrl);
     });
-  }, [sessionId]);
+  }, [shortCode]);
 
-  // Poll session while waiting / submitted so we can transition at the right moments
-  useEffect(() => {
-    if (!sessionId) return;
-    if (phase !== "waiting" && phase !== "submitted" && phase !== "filling") return;
-    const poll = () => api.get(`/api/fse/sessions/${sessionId}`).then(s => {
-      setSessionData(s);
-      if (phase === "waiting" && s.status !== "waiting") setPhase("filling");
-      if (phase === "submitted" && s.status === "complete") setPhase("complete");
-    }).catch(() => {});
-    poll();
-    const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
-  }, [phase, sessionId]);
+  const canSubmit = Object.values(coacheeData).every(v => v.trim().length > 0);
 
-  const canSubmit = Object.values(data).every(v => v.trim().length > 0);
-
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!canSubmit) return;
+    const conn = connRef.current;
+    if (!conn || !conn.open) {
+      setError("Connessione col coach perduta. Ricarica l'esercizio.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await api.post(`/api/fse/sessions/${sessionId}/submit`, { role: "coachee", data });
-      setPhase(res.status === "complete" ? "complete" : "submitted");
-    } catch {
+      conn.send({ type: "submission", data: coacheeData });
+      setPhase(coachData ? "complete" : "submitted");
+    } catch (e) {
       setError("Errore durante l'invio. Riprova.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const sessionUrl = sessionId ? `${window.location.origin}/?fse=${sessionId}` : "";
+  const handleRestart = () => {
+    if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) { /* noop */ } peerRef.current = null; }
+    connRef.current = null;
+    setShortCode(null); setQrDataUrl(""); setSituation(""); setCoacheeData(EMPTY()); setCoachData(null);
+    setPhase("setup");
+  };
+
+  const sessionUrl = shortCode ? `${window.location.origin}${window.location.pathname}?fse=${shortCode}` : "";
+  const session = { situation, coachee: coacheeData, coach: coachData || EMPTY() };
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: BG, fontFamily: FONT, color: "#1A2B3C", overflow: "hidden" }}>
@@ -325,13 +378,13 @@ function CoacheeFlow({ onHome }) {
       <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "32px 24px", animation: "fadeIn 0.4s ease" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
-          {/* SETUP — coachee defines the micro-situation */}
+          {/* SETUP */}
           {phase === "setup" && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Fase Osserva · Nuova sessione</div>
               <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 10 }}>Descrivi la micro-situazione</h1>
               <p style={{ fontSize: 15, color: "#4B5563", lineHeight: 1.6, marginBottom: 22 }}>
-                In quanto <strong>coachee</strong>, racconta un episodio concreto su cui vuoi confrontarti con il tuo coach. Dopo la creazione riceverai un QR code: quando il coach lo scansiona potrete entrambi compilare le vostre schede.
+                In quanto <strong>coachee</strong>, racconta un episodio concreto su cui vuoi confrontarti con il tuo coach. Dopo la creazione riceverai un QR code: quando il coach lo scansiona potrete entrambi compilare le vostre schede. La connessione è <strong>peer-to-peer</strong>: i dati non transitano da alcun server.
               </p>
 
               <div style={{ marginBottom: 18 }}>
@@ -347,7 +400,6 @@ function CoacheeFlow({ onHome }) {
                 />
               </div>
 
-              {/* Suggestion vignettes */}
               <div style={{ marginBottom: 24 }}>
                 <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>Oppure parti da una scena d'esempio:</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -377,14 +429,15 @@ function CoacheeFlow({ onHome }) {
             </div>
           )}
 
-          {/* WAITING — show QR, wait for coach to join */}
+          {/* WAITING */}
           {phase === "waiting" && (
             <div>
+              <ReloadWarning />
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#F59E0B", animation: "pulse 1.5s infinite" }} />
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#D97706", textTransform: "uppercase", letterSpacing: "0.08em" }}>In attesa del coach</div>
               </div>
-              <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 18 }}>Codice sessione: <span style={{ color: BLUE, fontFamily: "monospace", letterSpacing: 4 }}>{sessionId}</span></h1>
+              <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 18 }}>Codice sessione: <span style={{ color: BLUE, fontFamily: "monospace", letterSpacing: 4 }}>{shortCode}</span></h1>
 
               <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, marginBottom: 20, alignItems: "start" }}>
                 <div style={{ background: "#FFF", borderRadius: 16, padding: 16, border: "1px solid #E2E8F0", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
@@ -412,13 +465,14 @@ function CoacheeFlow({ onHome }) {
             </div>
           )}
 
-          {/* FILLING — coachee compiles the 3 columns */}
+          {/* FILLING */}
           {phase === "filling" && (
             <div>
+              <ReloadWarning />
               <RoleBanner role={ROLES.coachee} />
               <SituationBox situation={situation} />
               {COLS.map(col => (
-                <ColumnCard key={col.id} col={col} value={data[col.id]} onChange={v => setData(d => ({ ...d, [col.id]: v }))} />
+                <ColumnCard key={col.id} col={col} value={coacheeData[col.id]} onChange={v => setCoacheeData(d => ({ ...d, [col.id]: v }))} />
               ))}
               {error && <div style={{ color: "#DC2626", fontSize: 14, marginTop: 12, padding: "10px 14px", background: "#FEF2F2", borderRadius: 8, border: "1px solid #FECACA" }}>{error}</div>}
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
@@ -435,24 +489,20 @@ function CoacheeFlow({ onHome }) {
             </div>
           )}
 
-          {/* SUBMITTED — waiting for coach to submit */}
+          {/* SUBMITTED */}
           {phase === "submitted" && (
-            <WaitingPanel
-              title="Scheda inviata. In attesa del coach…"
-              subtitle="Quando anche il coach avrà inviato la sua scheda, vedrete entrambi il confronto affiancato con le parole-spia di interpretazione evidenziate."
-            />
+            <div>
+              <ReloadWarning />
+              <WaitingPanel
+                title="Scheda inviata. In attesa del coach…"
+                subtitle="Quando anche il coach avrà inviato la sua scheda, vedrete entrambi il confronto affiancato con le parole-spia di interpretazione evidenziate."
+              />
+            </div>
           )}
 
-          {/* COMPLETE — show results */}
-          {phase === "complete" && sessionData && (
-            <CompletionResults
-              session={sessionData}
-              onHome={onHome}
-              onRestart={() => {
-                setSessionId(null); setQrDataUrl(""); setSessionData(null);
-                setSituation(""); setData(EMPTY()); setPhase("setup");
-              }}
-            />
+          {/* COMPLETE */}
+          {phase === "complete" && (
+            <CompletionResults session={session} onHome={onHome} onRestart={handleRestart} />
           )}
 
         </div>
@@ -461,59 +511,76 @@ function CoacheeFlow({ onHome }) {
   );
 }
 
-/* ═══ COACH FLOW (joins session via QR) ═══ */
-function CoachFlow({ sessionId, onHome }) {
+/* ═══ COACH FLOW (joiner peer) ═══ */
+function CoachFlow({ sessionCode, onHome }) {
   const scrollRef = useRef(null);
-  const [phase, setPhase] = useState("loading"); // loading | invalid | filling | submitted | complete
-  const [sessionData, setSessionData] = useState(null);
-  const [data, setData] = useState(EMPTY);
+  const peerRef = useRef(null);
+  const connRef = useRef(null);
+
+  const [phase, setPhase] = useState("connecting"); // connecting | invalid | filling | submitted | complete
+  const [situation, setSituation] = useState("");
+  const [coachData, setCoachData] = useState(EMPTY);
+  const [coacheeData, setCoacheeData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [phase]);
 
-  // Load session + join on mount
   useEffect(() => {
-    if (!sessionId) { setPhase("invalid"); return; }
-    (async () => {
-      try {
-        const s = await api.get(`/api/fse/sessions/${sessionId}`);
-        setSessionData(s);
-        await api.post(`/api/fse/sessions/${sessionId}/join`, {}).catch(() => {});
-        if (s.status === "complete") setPhase("complete");
-        else setPhase("filling");
-      } catch {
-        setPhase("invalid");
-      }
-    })();
-  }, [sessionId]);
+    if (!sessionCode) { setPhase("invalid"); return; }
+    const peer = new Peer();
+    peerRef.current = peer;
 
-  // Poll after submission for completion
+    peer.on("open", () => {
+      const targetId = `${PEER_PREFIX}-${sessionCode}`;
+      const conn = peer.connect(targetId, { reliable: true });
+      connRef.current = conn;
+      conn.on("data", (msg) => {
+        if (!msg || !msg.type) return;
+        if (msg.type === "situation") {
+          setSituation(msg.situation);
+          setPhase(prev => prev === "connecting" ? "filling" : prev);
+        } else if (msg.type === "submission") {
+          setCoacheeData(msg.data);
+        }
+      });
+      conn.on("close", () => { connRef.current = null; });
+    });
+
+    peer.on("error", (err) => {
+      if (err.type === "peer-unavailable") setPhase("invalid");
+      else setError("Errore di connessione peer-to-peer.");
+    });
+
+    return () => { try { peer.destroy(); } catch (e) { /* noop */ } peerRef.current = null; };
+  }, [sessionCode]);
+
+  // Transition to complete as soon as both submissions are present
   useEffect(() => {
-    if (phase !== "submitted" && phase !== "filling") return;
-    const interval = setInterval(() => {
-      api.get(`/api/fse/sessions/${sessionId}`).then(s => {
-        setSessionData(s);
-        if (s.status === "complete") setPhase("complete");
-      }).catch(() => {});
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [phase, sessionId]);
+    if (coacheeData && phase === "submitted") setPhase("complete");
+  }, [coacheeData, phase]);
 
-  const canSubmit = Object.values(data).every(v => v.trim().length > 0);
+  const canSubmit = Object.values(coachData).every(v => v.trim().length > 0);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!canSubmit) return;
+    const conn = connRef.current;
+    if (!conn || !conn.open) {
+      setError("Connessione col coachee perduta.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await api.post(`/api/fse/sessions/${sessionId}/submit`, { role: "coach", data });
-      setPhase(res.status === "complete" ? "complete" : "submitted");
-    } catch {
+      conn.send({ type: "submission", data: coachData });
+      setPhase(coacheeData ? "complete" : "submitted");
+    } catch (e) {
       setError("Errore durante l'invio. Riprova.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const session = coacheeData ? { situation, coach: coachData, coachee: coacheeData } : null;
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: BG, fontFamily: FONT, color: "#1A2B3C", overflow: "hidden" }}>
@@ -524,10 +591,11 @@ function CoachFlow({ sessionId, onHome }) {
       <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "32px 24px", animation: "fadeIn 0.4s ease" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
-          {phase === "loading" && (
+          {phase === "connecting" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 16 }}>
               <div style={{ width: 36, height: 36, border: `3px solid ${BLUE}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-              <div style={{ fontSize: 15, color: "#6B7280" }}>Caricamento sessione {sessionId}…</div>
+              <div style={{ fontSize: 15, color: "#6B7280" }}>Connessione peer-to-peer con il coachee…</div>
+              <div style={{ fontSize: 13, color: "#9CA3AF" }}>Codice: {sessionCode}</div>
             </div>
           )}
 
@@ -535,17 +603,18 @@ function CoachFlow({ sessionId, onHome }) {
             <div style={{ textAlign: "center", padding: "60px 20px" }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
               <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Sessione non trovata</h2>
-              <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>Il codice usato non è valido o la sessione è scaduta. Chiedi al coachee di generarne una nuova.</p>
+              <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>Il codice usato non è valido, la sessione non esiste più o il coachee ha chiuso la pagina. Chiedi al coachee di generarne una nuova.</p>
               <button onClick={onHome} style={{ background: BLUE, color: "#FFF", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Torna alla Home</button>
             </div>
           )}
 
-          {phase === "filling" && sessionData && (
+          {phase === "filling" && (
             <div>
+              <ReloadWarning />
               <RoleBanner role={ROLES.coach} />
-              <SituationBox situation={sessionData.situation} />
+              <SituationBox situation={situation} />
               {COLS.map(col => (
-                <ColumnCard key={col.id} col={col} value={data[col.id]} onChange={v => setData(d => ({ ...d, [col.id]: v }))} />
+                <ColumnCard key={col.id} col={col} value={coachData[col.id]} onChange={v => setCoachData(d => ({ ...d, [col.id]: v }))} />
               ))}
               {error && <div style={{ color: "#DC2626", fontSize: 14, marginTop: 12, padding: "10px 14px", background: "#FEF2F2", borderRadius: 8, border: "1px solid #FECACA" }}>{error}</div>}
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
@@ -563,14 +632,17 @@ function CoachFlow({ sessionId, onHome }) {
           )}
 
           {phase === "submitted" && (
-            <WaitingPanel
-              title="Scheda inviata. In attesa del coachee…"
-              subtitle="Appena il coachee avrà inviato anche la sua scheda, vedrete entrambi il confronto affiancato."
-            />
+            <div>
+              <ReloadWarning />
+              <WaitingPanel
+                title="Scheda inviata. In attesa del coachee…"
+                subtitle="Appena il coachee avrà inviato anche la sua scheda, vedrete entrambi il confronto affiancato."
+              />
+            </div>
           )}
 
-          {phase === "complete" && sessionData && (
-            <CompletionResults session={sessionData} onHome={onHome} onRestart={null} />
+          {phase === "complete" && session && (
+            <CompletionResults session={session} onHome={onHome} onRestart={null} />
           )}
 
         </div>
@@ -597,11 +669,10 @@ function ModeSelectScreen({ onHome, onCoachee, onCoach }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Fase Osserva</div>
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 10 }}>Fatti / Significati / Emozioni</h1>
           <p style={{ fontSize: 16, color: "#4B5563", lineHeight: 1.6, marginBottom: 32 }}>
-            Due persone osservano la stessa micro-situazione e compilano tre colonne (fatti, significati, emozioni). Alla fine il sistema mostra le schede affiancate evidenziando le parole-spia di interpretazione.
+            Due persone osservano la stessa micro-situazione e compilano tre colonne (fatti, significati, emozioni). Alla fine il sistema mostra le schede affiancate evidenziando le parole-spia di interpretazione. La connessione è peer-to-peer: i dati non lasciano mai i vostri browser.
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Coachee */}
             <button onClick={onCoachee}
               style={{ background: "#FFF", border: "2px solid #DB277730", borderRadius: 16, padding: "22px 26px", textAlign: "left", cursor: "pointer", fontFamily: FONT, transition: "all 0.2s", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = "#DB2777"; e.currentTarget.style.boxShadow = "0 4px 20px #DB277722"; }}
@@ -614,7 +685,6 @@ function ModeSelectScreen({ onHome, onCoachee, onCoach }) {
               <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.5, paddingLeft: 58 }}>Avvia una nuova sessione, inserisci la micro-situazione e invia al coach il QR code per entrare.</div>
             </button>
 
-            {/* Coach */}
             <div style={{ background: "#FFF", border: "2px solid #0099E630", borderRadius: 16, padding: "22px 26px", fontFamily: FONT }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: "#0099E614", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🎯</div>
@@ -660,22 +730,28 @@ function ModeSelectScreen({ onHome, onCoachee, onCoach }) {
 
 /* ═══ ROOT EXPORT ═══ */
 export default function FattiSignificatiEmozioni({ onHome }) {
-  const urlFseId = useMemo(() => new URLSearchParams(window.location.search).get("fse"), []);
-  const [mode, setMode] = useState(urlFseId ? "coach" : null);
-  const [coachSessionId, setCoachSessionId] = useState(urlFseId || null);
+  const urlFseCode = useMemo(() => {
+    const raw = new URLSearchParams(window.location.search).get("fse");
+    if (!raw) return null;
+    const up = raw.toUpperCase();
+    return /^[A-F0-9]{6}$/.test(up) ? up : null;
+  }, []);
+
+  const [mode, setMode] = useState(urlFseCode ? "coach" : null);
+  const [coachSessionCode, setCoachSessionCode] = useState(urlFseCode || null);
 
   const safeOnHome = () => {
     if (window.location.search) window.history.replaceState({}, "", window.location.pathname);
     onHome();
   };
 
-  if (mode === "coach" && coachSessionId) return <CoachFlow sessionId={coachSessionId} onHome={safeOnHome} />;
+  if (mode === "coach" && coachSessionCode) return <CoachFlow sessionCode={coachSessionCode} onHome={safeOnHome} />;
   if (mode === "coachee") return <CoacheeFlow onHome={safeOnHome} />;
   return (
     <ModeSelectScreen
       onHome={safeOnHome}
       onCoachee={() => setMode("coachee")}
-      onCoach={(code) => { setCoachSessionId(code); setMode("coach"); }}
+      onCoach={(code) => { setCoachSessionCode(code); setMode("coach"); }}
     />
   );
 }

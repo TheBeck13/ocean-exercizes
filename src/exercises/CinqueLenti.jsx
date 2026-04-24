@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import Peer from "peerjs";
 import Navbar from "../components/Navbar.jsx";
 
 /* ═══ CONSTANTS ═══ */
 const BG = "#F8FBFF";
 const BLUE = "#0099E6";
 const BLUE_DARK = "#0077B3";
-const HEADER_H = 56;
 const FONT = "'Source Sans 3', sans-serif";
+
+const PEER_PREFIX = "lenti";
+const CODE_ALPHABET = "ABCDEF0123456789";
+const genShortCode = () => {
+  let s = "";
+  for (let i = 0; i < 6; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return s;
+};
 
 const LENSES = [
   { id: "self",     label: "Io, qui e ora",                  description: "Il te stesso, quello di questo momento, che vive il tuo contesto e situazioni attuali.",                                                                            color: "#0099E6" },
@@ -18,17 +26,16 @@ const LENSES = [
 
 const EMPTY_LENSES = () => Object.fromEntries(LENSES.map(l => [l.id, { important: "", reaction: "", rationality: "" }]));
 
-/* ═══ API HELPERS ═══ */
-const api = {
-  post: (url, body) => fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }).then(r => { if (!r.ok) throw r.status; return r.json(); }),
-  get: (url) => fetch(url).then(r => { if (!r.ok) throw r.status; return r.json(); }),
-};
-
 /* ═══ SHARED COMPONENTS ═══ */
+function ReloadWarning() {
+  return (
+    <div style={{ background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#92400E", fontWeight: 600, display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <span style={{ fontSize: 16, lineHeight: 1.2 }}>⚠️</span>
+      <span>ATTENZIONE: non ricaricare la pagina, perderesti tutti i tuoi progressi di quest'esercizio!</span>
+    </div>
+  );
+}
+
 function StepDot({ index, current }) {
   const done = index < current;
   const active = index === current;
@@ -93,14 +100,13 @@ function LensForm({ lens, step, data, onChange }) {
   );
 }
 
-/* ═══ PERSONAL FLOW (unchanged logic) ═══ */
+/* ═══ PERSONAL FLOW (no networking) ═══ */
 function PersonalFlow({ onHome }) {
   const [situation, setSituation] = useState("");
   const [step, setStep] = useState(-1);
   const [lenses, setLenses] = useState(EMPTY_LENSES);
   const scrollRef = useRef(null);
 
-  // Scroll to top whenever the step changes
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [step]);
@@ -127,7 +133,6 @@ function PersonalFlow({ onHome }) {
       <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "32px 24px", animation: "fadeIn 0.4s ease" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
 
-          {/* INTRO */}
           {step === -1 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Fase Osserva</div>
@@ -154,9 +159,9 @@ function PersonalFlow({ onHome }) {
             </div>
           )}
 
-          {/* LENS STEP */}
           {step >= 0 && step < 5 && currentLens && (
             <div>
+              <ReloadWarning />
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
                 {LENSES.map((_, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}><StepDot index={i} current={step} />{i < LENSES.length - 1 && <div style={{ height: 2, width: 24, background: i < step ? BLUE : "#E2E8F0", borderRadius: 2 }} />}</div>))}
               </div>
@@ -171,9 +176,9 @@ function PersonalFlow({ onHome }) {
             </div>
           )}
 
-          {/* SUMMARY */}
           {step === 5 && (
             <div>
+              <ReloadWarning />
               <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>✓ Esercizio completato</div>
               <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Mappa di Prospettive</h1>
               <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 24 }}>Hai analizzato la situazione attraverso tutte e 5 le lenti.</p>
@@ -209,65 +214,91 @@ function PersonalFlow({ onHome }) {
   );
 }
 
-/* ═══ TRAINER FLOW ═══ */
+/* ═══ TRAINER FLOW (hub peer) ═══ */
 function TrainerFlow({ onHome }) {
   const [phase, setPhase] = useState("setup");   // setup | active | results
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [phase]);
   const [situation, setSituation] = useState("");
-  const [sessionId, setSessionId] = useState(null);
+  const [shortCode, setShortCode] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const [sessionData, setSessionData] = useState(null);
+  const [submissions, setSubmissions] = useState([]); // [{studentId, lenses}]
   const [error, setError] = useState("");
 
-  // Create session
-  const handleStart = async () => {
-    setError("");
-    try {
-      const data = await api.post("/api/sessions", { situation });
-      setSessionId(data.id);
+  const scrollRef = useRef(null);
+  const peerRef = useRef(null);
+  const situationRef = useRef("");
+  const connsRef = useRef(new Map()); // peerId → DataConnection
+
+  useEffect(() => { situationRef.current = situation; }, [situation]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [phase]);
+
+  useEffect(() => () => {
+    if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) { /* noop */ } peerRef.current = null; }
+    connsRef.current.clear();
+  }, []);
+
+  const createPeer = () => {
+    const code = genShortCode();
+    const peerId = `${PEER_PREFIX}-${code}`;
+    const peer = new Peer(peerId);
+    peerRef.current = peer;
+
+    peer.on("open", () => {
+      setShortCode(code);
       setPhase("active");
-    } catch {
-      setError("Impossibile avviare la sessione. Verifica che il server sia attivo.");
-    }
+    });
+
+    peer.on("error", (err) => {
+      if (err.type === "unavailable-id") {
+        try { peer.destroy(); } catch (e) { /* noop */ }
+        peerRef.current = null;
+        createPeer();
+      } else {
+        setError("Errore di connessione peer-to-peer. Controlla la tua rete e riprova.");
+      }
+    });
+
+    peer.on("connection", (conn) => {
+      connsRef.current.set(conn.peer, conn);
+      conn.on("open", () => {
+        conn.send({ type: "situation", situation: situationRef.current });
+      });
+      conn.on("data", (msg) => {
+        if (!msg || !msg.type) return;
+        if (msg.type === "submission" && msg.studentId) {
+          setSubmissions(prev => {
+            const filtered = prev.filter(s => s.studentId !== msg.studentId);
+            return [...filtered, { studentId: msg.studentId, lenses: msg.lenses }];
+          });
+        }
+      });
+      conn.on("close", () => { connsRef.current.delete(conn.peer); });
+    });
   };
 
-  // Generate QR code as data URL
+  const handleStart = () => {
+    setError("");
+    createPeer();
+  };
+
   useEffect(() => {
-    if (!sessionId) return;
-    const sessionUrl = `${window.location.origin}/?session=${sessionId}`;
+    if (!shortCode) return;
+    const url = `${window.location.origin}${window.location.pathname}?session=${shortCode}`;
     import("qrcode").then(({ default: QRCode }) => {
-      QRCode.toDataURL(sessionUrl, { width: 220, margin: 1, color: { dark: "#0077B3", light: "#F8FBFF" } })
+      QRCode.toDataURL(url, { width: 220, margin: 1, color: { dark: "#0077B3", light: "#F8FBFF" } })
         .then(setQrDataUrl);
     });
-  }, [sessionId]);
+  }, [shortCode]);
 
-  // Poll for submissions while active
-  useEffect(() => {
-    if (phase !== "active" || !sessionId) return;
-    const poll = () => api.get(`/api/sessions/${sessionId}`).then(setSessionData).catch(() => {});
-    poll();
-    const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
-  }, [phase, sessionId]);
-
-  // Close session
-  const handleClose = async () => {
-    try {
-      await api.post(`/api/sessions/${sessionId}/close`, {});
-      const data = await api.get(`/api/sessions/${sessionId}`);
-      setSessionData(data);
-      setPhase("results");
-    } catch {
-      setError("Errore nella chiusura della sessione.");
-    }
+  const handleClose = () => {
+    connsRef.current.forEach(conn => {
+      try { if (conn.open) conn.send({ type: "closed" }); } catch (e) { /* noop */ }
+    });
+    setPhase("results");
   };
 
-  const sessionUrl = sessionId ? `${window.location.origin}/?session=${sessionId}` : "";
-  const submissionCount = sessionData?.submissions?.length ?? 0;
+  const sessionUrl = shortCode ? `${window.location.origin}${window.location.pathname}?session=${shortCode}` : "";
+  const submissionCount = submissions.length;
+  const sessionData = { situation, submissions };
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: BG, fontFamily: FONT, color: "#1A2B3C", overflow: "hidden" }}>
@@ -279,12 +310,11 @@ function TrainerFlow({ onHome }) {
       <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "32px 24px", animation: "fadeIn 0.4s ease" }}>
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
 
-          {/* ── SETUP: enter situation ── */}
           {phase === "setup" && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Sessione in Aula</div>
               <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>Avvia Sessione</h1>
-              <p style={{ fontSize: 15, color: "#6B7280", lineHeight: 1.6, marginBottom: 28 }}>Inserisci la situazione su cui gli studenti lavoreranno. Dopo aver avviato la sessione riceverai un QR code da mostrare in aula.</p>
+              <p style={{ fontSize: 15, color: "#6B7280", lineHeight: 1.6, marginBottom: 28 }}>Inserisci la situazione su cui gli studenti lavoreranno. Dopo aver avviato la sessione riceverai un QR code da mostrare in aula. La connessione è <strong>peer-to-peer</strong>: i dati degli studenti non transitano da alcun server.</p>
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 15, fontWeight: 700, color: "#1A2B3C", marginBottom: 8 }}>Situazione da analizzare</label>
                 <textarea value={situation} onChange={e => setSituation(e.target.value)} placeholder="Es: 'Un manager fatica a comunicare i cambiamenti organizzativi al suo team senza generare resistenze.'" rows={5} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#FFF", fontSize: 15, fontFamily: FONT, color: "#1A2B3C", lineHeight: 1.55, resize: "vertical" }} onFocus={e => e.target.style.borderColor = BLUE} onBlur={e => e.target.style.borderColor = "#E2E8F0"} />
@@ -296,18 +326,17 @@ function TrainerFlow({ onHome }) {
             </div>
           )}
 
-          {/* ── ACTIVE: show QR code + monitor ── */}
           {phase === "active" && (
             <div>
+              <ReloadWarning />
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#22C55E", animation: "pulse 1.5s infinite" }} />
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#22C55E", textTransform: "uppercase", letterSpacing: "0.08em" }}>Sessione Attiva</div>
               </div>
               <style>{`@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }`}</style>
-              <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 20 }}>Codice sessione: <span style={{ color: BLUE, fontFamily: "monospace", letterSpacing: 4 }}>{sessionId}</span></h1>
+              <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 20 }}>Codice sessione: <span style={{ color: BLUE, fontFamily: "monospace", letterSpacing: 4 }}>{shortCode}</span></h1>
 
               <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, marginBottom: 28, alignItems: "start" }}>
-                {/* QR code */}
                 <div style={{ background: "#FFF", borderRadius: 16, padding: 16, border: "1px solid #E2E8F0", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                   {qrDataUrl
                     ? <img src={qrDataUrl} alt="QR Code sessione" style={{ width: 200, height: 200 }} />
@@ -316,7 +345,6 @@ function TrainerFlow({ onHome }) {
                   <div style={{ fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>Scansiona per partecipare</div>
                 </div>
 
-                {/* Info panel */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ background: "#FFF", borderRadius: 12, padding: "14px 16px", border: "1px solid #E2E8F0" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Situazione</div>
@@ -341,9 +369,9 @@ function TrainerFlow({ onHome }) {
             </div>
           )}
 
-          {/* ── RESULTS ── */}
-          {phase === "results" && sessionData && (
+          {phase === "results" && (
             <div>
+              <ReloadWarning />
               <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>✓ Sessione Terminata</div>
               <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 6 }}>Risultati della Classe</h1>
               <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 20 }}>{sessionData.submissions.length} studenti hanno completato l'esercizio.</p>
@@ -353,7 +381,6 @@ function TrainerFlow({ onHome }) {
                 <div style={{ fontSize: 15, color: "#1A2B3C", lineHeight: 1.55 }}>{sessionData.situation}</div>
               </div>
 
-              {/* Professor feature placeholder */}
               <div style={{ background: "#F9FAFB", borderRadius: 12, border: "1.5px dashed #D1D5DB", padding: "18px 20px", marginBottom: 24, textAlign: "center" }}>
                 <div style={{ fontSize: 14, color: "#9CA3AF", fontStyle: "italic" }}>
                   Inserisci qui feature del prof — Analisi completa con risposte di tutti gli studenti
@@ -364,7 +391,6 @@ function TrainerFlow({ onHome }) {
                 <div style={{ textAlign: "center", padding: "40px 20px", color: "#9CA3AF", fontSize: 15 }}>Nessuno studente ha inviato risposte.</div>
               )}
 
-              {/* Results grouped by lens */}
               {LENSES.map(lens => (
                 <div key={lens.id} style={{ marginBottom: 20 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -406,9 +432,11 @@ function TrainerFlow({ onHome }) {
   );
 }
 
-/* ═══ STUDENT FLOW ═══ */
-function StudentFlow({ sessionId, onHome }) {
+/* ═══ STUDENT FLOW (peer joiner) ═══ */
+function StudentFlow({ sessionCode, onHome }) {
   const scrollRef = useRef(null);
+  const peerRef = useRef(null);
+  const connRef = useRef(null);
 
   const studentId = useMemo(() => {
     let id = sessionStorage.getItem("lenti_student_id");
@@ -418,59 +446,56 @@ function StudentFlow({ sessionId, onHome }) {
 
   const [phase, setPhase] = useState("loading");  // loading | invalid | active | submitted | closed
   const [situation, setSituation] = useState("");
-  const [step, setStep] = useState(-1);           // -1=intro, 0-4=lenses
+  const [step, setStep] = useState(-1);
   const [lenses, setLenses] = useState(EMPTY_LENSES);
   const [submitting, setSubmitting] = useState(false);
 
-  // Scroll to top whenever the lens step changes (fixes lenses 3 & 4 appearing mid-page)
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [step]);
+  }, [step, phase]);
 
   const updateLens = (id, field, value) => setLenses(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   const currentLens = step >= 0 && step < LENSES.length ? LENSES[step] : null;
   const canProceed = currentLens ? lenses[currentLens.id].important.trim() && lenses[currentLens.id].reaction.trim() : true;
 
-  // Load session on mount
   useEffect(() => {
-    api.get(`/api/sessions/${sessionId}`)
-      .then(data => {
-        if (data.status === "closed") { onHome(); return; }
-        setSituation(data.situation);
-        setPhase("active");
-      })
-      .catch(() => setPhase("invalid"));
-  }, [sessionId]);
+    if (!sessionCode) { setPhase("invalid"); return; }
+    const peer = new Peer();
+    peerRef.current = peer;
 
-  // Poll for session invalidation while student is working
-  useEffect(() => {
-    if (phase !== "active") return;
-    const interval = setInterval(() => {
-      api.get(`/api/sessions/${sessionId}`)
-        .then(data => { if (data.status === "closed") onHome(); })
-        .catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [phase, sessionId]);
+    peer.on("open", () => {
+      const targetId = `${PEER_PREFIX}-${sessionCode}`;
+      const conn = peer.connect(targetId, { reliable: true });
+      connRef.current = conn;
+      conn.on("data", (msg) => {
+        if (!msg || !msg.type) return;
+        if (msg.type === "situation") {
+          setSituation(msg.situation);
+          setPhase(prev => prev === "loading" ? "active" : prev);
+        } else if (msg.type === "closed") {
+          setPhase(prev => prev === "submitted" ? "closed" : prev === "active" ? "closed" : prev);
+        }
+      });
+      conn.on("close", () => {
+        setPhase(prev => (prev === "submitted" || prev === "active") ? "closed" : prev);
+      });
+    });
 
-  // Poll after submission to detect session close
-  useEffect(() => {
-    if (phase !== "submitted") return;
-    const interval = setInterval(() => {
-      api.get(`/api/sessions/${sessionId}`)
-        .then(data => { if (data.status === "closed") { clearInterval(interval); setPhase("closed"); } })
-        .catch(() => {});
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [phase, sessionId]);
+    peer.on("error", (err) => {
+      if (err.type === "peer-unavailable") setPhase("invalid");
+    });
 
-  const handleSubmit = async () => {
+    return () => { try { peer.destroy(); } catch (e) { /* noop */ } peerRef.current = null; };
+  }, [sessionCode]);
+
+  const handleSubmit = () => {
+    const conn = connRef.current;
+    if (!conn || !conn.open) return;
     setSubmitting(true);
     try {
-      await api.post(`/api/sessions/${sessionId}/submit`, { studentId, lenses });
+      conn.send({ type: "submission", studentId, lenses });
       setPhase("submitted");
-    } catch (err) {
-      if (err === 410) { onHome(); } // session already closed
+    } catch (e) {
       setSubmitting(false);
     }
   };
@@ -485,27 +510,25 @@ function StudentFlow({ sessionId, onHome }) {
       <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "32px 24px", animation: "fadeIn 0.4s ease" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
 
-          {/* LOADING */}
           {phase === "loading" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 16 }}>
               <div style={{ width: 36, height: 36, border: `3px solid ${BLUE}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-              <div style={{ fontSize: 15, color: "#6B7280" }}>Caricamento sessione...</div>
+              <div style={{ fontSize: 15, color: "#6B7280" }}>Connessione peer-to-peer alla sessione {sessionCode}…</div>
             </div>
           )}
 
-          {/* INVALID */}
           {phase === "invalid" && (
             <div style={{ textAlign: "center", padding: "60px 20px" }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
               <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Sessione non trovata</h2>
-              <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>Il link che hai usato non è valido o la sessione è già terminata.</p>
+              <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>Il link che hai usato non è valido, la sessione è già terminata o il formatore ha chiuso la pagina.</p>
               <button onClick={onHome} style={{ background: BLUE, color: "#FFF", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Torna alla Home</button>
             </div>
           )}
 
-          {/* INTRO */}
           {phase === "active" && step === -1 && (
             <div>
+              <ReloadWarning />
               <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Sessione in Aula — Fase Osserva</div>
               <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 12 }}>Le 5 Lenti</h1>
               <p style={{ fontSize: 15, color: "#4B5563", lineHeight: 1.65, marginBottom: 20 }}>Analizzerai la seguente situazione attraverso <strong>5 prospettive</strong> diverse. Per ciascuna, indica cosa considera importante quella prospettiva e qual è la sua prima reazione.</p>
@@ -527,9 +550,9 @@ function StudentFlow({ sessionId, onHome }) {
             </div>
           )}
 
-          {/* LENS STEPS */}
           {phase === "active" && step >= 0 && step < 5 && currentLens && (
             <div>
+              <ReloadWarning />
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
                 {LENSES.map((_, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}><StepDot index={i} current={step} />{i < LENSES.length - 1 && <div style={{ height: 2, width: 24, background: i < step ? BLUE : "#E2E8F0", borderRadius: 2 }} />}</div>))}
               </div>
@@ -547,20 +570,21 @@ function StudentFlow({ sessionId, onHome }) {
             </div>
           )}
 
-          {/* SUBMITTED — thank you, waiting for trainer */}
           {phase === "submitted" && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>Grazie per aver partecipato!</h2>
-              <p style={{ fontSize: 15, color: "#6B7280", lineHeight: 1.6, marginBottom: 28 }}>Le tue risposte sono state inviate con successo.<br />Attendi che il formatore concluda la sessione.</p>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "#9CA3AF", fontSize: 14 }}>
-                <div style={{ width: 18, height: 18, border: "2px solid #9CA3AF", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                In attesa...
+            <div>
+              <ReloadWarning />
+              <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+                <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>Grazie per aver partecipato!</h2>
+                <p style={{ fontSize: 15, color: "#6B7280", lineHeight: 1.6, marginBottom: 28 }}>Le tue risposte sono state inviate con successo.<br />Attendi che il formatore concluda la sessione.</p>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "#9CA3AF", fontSize: 14 }}>
+                  <div style={{ width: 18, height: 18, border: "2px solid #9CA3AF", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                  In attesa...
+                </div>
               </div>
             </div>
           )}
 
-          {/* CLOSED — session ended by trainer */}
           {phase === "closed" && (
             <div style={{ textAlign: "center", padding: "60px 20px" }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
@@ -594,7 +618,6 @@ function ModeSelectScreen({ onHome, onPersonal, onTrainer }) {
           <p style={{ fontSize: 16, color: "#4B5563", lineHeight: 1.6, marginBottom: 36 }}>Scegli come vuoi svolgere l'esercizio:</p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Personal */}
             <button onClick={onPersonal} style={{ background: "#FFF", border: `2px solid ${BLUE}30`, borderRadius: 16, padding: "24px 28px", textAlign: "left", cursor: "pointer", fontFamily: FONT, transition: "all 0.2s", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }} onMouseEnter={e => { e.currentTarget.style.borderColor = BLUE; e.currentTarget.style.boxShadow = `0 4px 20px ${BLUE}20`; }} onMouseLeave={e => { e.currentTarget.style.borderColor = `${BLUE}30`; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.05)"; }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: `${BLUE}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>👤</div>
@@ -603,7 +626,6 @@ function ModeSelectScreen({ onHome, onPersonal, onTrainer }) {
               <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.5, paddingLeft: 58 }}>Svolgi l'esercizio individualmente: inserisci la tua situazione e analizzala attraverso le 5 lenti.</div>
             </button>
 
-            {/* Classroom */}
             <button onClick={onTrainer} style={{ background: "#FFF", border: `2px solid #7C3AED30`, borderRadius: 16, padding: "24px 28px", textAlign: "left", cursor: "pointer", fontFamily: FONT, transition: "all 0.2s", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "#7C3AED"; e.currentTarget.style.boxShadow = "0 4px 20px #7C3AED20"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "#7C3AED30"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.05)"; }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: "#7C3AED12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🏫</div>
@@ -621,12 +643,15 @@ function ModeSelectScreen({ onHome, onPersonal, onTrainer }) {
 
 /* ═══ ROOT EXPORT ═══ */
 export default function CinqueLenti({ onHome }) {
-  // Detect student session from URL param
-  const sessionId = useMemo(() => new URLSearchParams(window.location.search).get("session"), []);
-  const [mode, setMode] = useState(sessionId ? "student" : null);
+  const urlSessionCode = useMemo(() => {
+    const raw = new URLSearchParams(window.location.search).get("session");
+    if (!raw) return null;
+    const up = raw.toUpperCase();
+    return /^[A-F0-9]{6}$/.test(up) ? up : null;
+  }, []);
 
-  // Always clear ?session= from URL before routing home, so re-mounting CinqueLenti
-  // (e.g. after switching to another exercise) doesn't re-enter student mode.
+  const [mode, setMode] = useState(urlSessionCode ? "student" : null);
+
   const safeOnHome = () => {
     if (window.location.search) {
       window.history.replaceState({}, "", window.location.pathname);
@@ -634,8 +659,8 @@ export default function CinqueLenti({ onHome }) {
     onHome();
   };
 
-  if (mode === "student" || sessionId) return <StudentFlow sessionId={sessionId} onHome={safeOnHome} />;
-  if (mode === "personal")             return <PersonalFlow onHome={safeOnHome} />;
-  if (mode === "trainer")              return <TrainerFlow onHome={safeOnHome} />;
+  if (mode === "student" || urlSessionCode) return <StudentFlow sessionCode={urlSessionCode} onHome={safeOnHome} />;
+  if (mode === "personal")                  return <PersonalFlow onHome={safeOnHome} />;
+  if (mode === "trainer")                   return <TrainerFlow onHome={safeOnHome} />;
   return <ModeSelectScreen onHome={safeOnHome} onPersonal={() => setMode("personal")} onTrainer={() => setMode("trainer")} />;
 }
