@@ -178,9 +178,10 @@ src/
 ├── data/
 │   └── cases.js                ← Case data (exported CASES object)
 ├── exercises/
-│   ├── StoryMap.jsx            ← Observe → Story Map exercise
-│   ├── CinqueLenti.jsx         ← Observe → Le 5 Lenti exercise
-│   └── LaFoto.jsx              ← Observe → La Foto exercise
+│   ├── StoryMap.jsx                  ← Observe → Story Map exercise
+│   ├── CinqueLenti.jsx               ← Observe → Le 5 Lenti exercise (WebRTC P2P for classroom mode)
+│   ├── FattiSignificatiEmozioni.jsx  ← Observe → Fatti/Significati/Emozioni exercise (WebRTC P2P for coach↔coachee)
+│   └── LaFoto.jsx                    ← Observe → La Foto exercise
 └── public/
     ├── logo.svg                ← Steering Change logo (used inside Navbar.jsx)
     └── bulb.svg                ← Lightbulb icon (used in StoryMap leaf nodes)
@@ -325,6 +326,13 @@ When `showFullGraph=true`:
 
 7. **Clean Code Rules** – always follow Uncle Bob's Clean Code guidelines.
 
+8. **Multi-device exercises use WebRTC (PeerJS), not a server** — `CinqueLenti.jsx` (trainer↔N students) and `FattiSignificatiEmozioni.jsx` (coachee↔coach) open a peer-to-peer data channel via the `peerjs` library. There is **no backend persistence**: session state lives only in the connected browsers. Peer IDs follow the pattern `<prefix>-<6HEX>` (`fse-A3F9BC`, `lenti-A3F9BC`) so QR codes and the manual-entry regex `/^[A-F0-9]{6}$/` keep working. Consequences for contributors:
+   - Both participants must be online **simultaneously**; asynchronous use is not supported
+   - A page refresh destroys the `Peer` instance and loses all progress — every "active session" screen must render the shared `ReloadWarning` banner (text: *"ATTENZIONE: non ricaricare la pagina, perderesti tutti i tuoi progressi di quest'esercizio!"*)
+   - Peers are created in a `useRef` and explicitly `peer.destroy()`-ed on unmount to free the signaling broker slot
+   - The public PeerJS Cloud broker is used only for signaling; app data flows directly between browsers and never transits a third-party server
+   - Exercises that don't need multi-device (e.g. `PersonalFlow` inside `CinqueLenti`) must not create a `Peer` — keep that flow purely local
+
 ---
 
 ## Testing
@@ -342,20 +350,48 @@ No automated tests yet. To verify:
 
 ## Deployment
 
-### React (preferred)
+### GitHub Pages (current production target)
+
+The repo is deployed to GitHub Pages at `https://thebeck13.github.io/ocean-exercizes/` via GitHub Actions. The public URL path `/ocean-exercizes/` is why `vite.config.js` sets `base: '/ocean-exercizes/'` — without this, asset references in `index.html` would 404.
+
+**Pipeline** — `.github/workflows/deploy.yml` (two-job workflow):
+1. `build` job: `npm ci` → `npm run build` → `actions/upload-pages-artifact@v3` packages `dist/` as a GitHub Pages artifact
+2. `deploy` job: `actions/deploy-pages@v4` publishes the artifact to the `github-pages` environment
+
+Triggers: push to `main` (automatic) or `workflow_dispatch` (manual from Actions UI). Permissions granted in-workflow: `pages: write`, `id-token: write`. Concurrency group `pages` with `cancel-in-progress` prevents race conditions between consecutive deploys.
+
+**One-time repo setup** (already done, here for posterity):
+- Settings → Pages → Source: **GitHub Actions** (not "Deploy from a branch")
+- Settings → Actions → General → Workflow permissions: read/write
+- `package-lock.json` **must be committed** — `npm ci` and the `actions/setup-node` cache require it. It was originally gitignored; the entry has been removed from both `.gitignore` and `.git/info/exclude`
+
+**No `gh-pages` branch is used.** The modern `actions/deploy-pages@v4` deploys from a workflow artifact directly to the Pages environment — the classic `gh-pages` branch pattern is **not** used here. Keep `main` as the only long-lived branch.
+
+### Client-side architecture and GitHub Pages compatibility
+
+GitHub Pages serves static files only: **no Node/Python backend is available at runtime**. The codebase honors this constraint:
+- `CinqueLenti.jsx` and `FattiSignificatiEmozioni.jsx` use **WebRTC via `peerjs`** for multi-device session coordination (see Common Gotchas §8). They do not call any `/api/*` endpoint
+- `PersonalFlow` inside `CinqueLenti` and any single-user flow are pure client-side React
+- If a new exercise needs cross-device state, prefer the WebRTC/PeerJS pattern already established; avoid reintroducing server dependencies unless absolutely necessary
+- `server.js` is retained only for local `npm run dev` convenience (used by flows that might still need it in legacy dev setups); it is **never** deployed and is not reachable from the Pages build
+
+### Alternative deployments (still supported)
 
 ```bash
-# Static hosting (Vercel/Netlify) — zero config
+# Vercel/Netlify — zero config, works the same way
 npm run build && vercel deploy dist/ --prod
 
-# Docker on VPS
+# Docker on a VPS (self-hosted)
 docker compose up -d --build  # serves on :3000 via nginx
 ```
+
+If deploying outside GitHub Pages to a root path (e.g. `app.example.com/`), change `base` in `vite.config.js` back to `'/'` or make it environment-driven.
 
 Final Docker image: ~25MB (nginx:alpine + ~150KB static files).
 
 ### Resource Requirements
 
-| Implementation | Image Size | Memory  | CPU    |
-|----------------|-----------|---------|--------|
-| React/Nginx    | ~25MB     | 64MB    | 0.25   |
+| Target          | Image/Artifact | Memory  | CPU    |
+|-----------------|----------------|---------|--------|
+| GitHub Pages    | ~600KB static  | n/a     | n/a    |
+| React/Nginx     | ~25MB          | 64MB    | 0.25   |

@@ -77,7 +77,7 @@ function LensForm({ lens, step, data, onChange }) {
   return (
     <div style={{ background: "#FFF", borderRadius: 16, border: `2px solid ${lens.color}22`, padding: "22px 24px", marginBottom: 24, boxShadow: `0 4px 20px ${lens.color}10` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div style={{ width: 36, height: 36, borderRadius: "50%", background: lens.color, color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800 }}>{step + 1}</div>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: lens.color, color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0 }}>{step + 1}</div>
         <div>
           <div style={{ fontSize: 19, fontWeight: 700 }}>{lens.label}</div>
           <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.4, marginTop: 2 }}>{lens.description}</div>
@@ -162,7 +162,7 @@ function PersonalFlow({ onHome }) {
           {step >= 0 && step < 5 && currentLens && (
             <div>
               <ReloadWarning />
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 32 }}>
                 {LENSES.map((_, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}><StepDot index={i} current={step} />{i < LENSES.length - 1 && <div style={{ height: 2, width: 24, background: i < step ? BLUE : "#E2E8F0", borderRadius: 2 }} />}</div>))}
               </div>
               <SituationBox situation={situation} />
@@ -553,7 +553,7 @@ function StudentFlow({ sessionCode, onHome }) {
           {phase === "active" && step >= 0 && step < 5 && currentLens && (
             <div>
               <ReloadWarning />
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 32 }}>
                 {LENSES.map((_, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}><StepDot index={i} current={step} />{i < LENSES.length - 1 && <div style={{ height: 2, width: 24, background: i < step ? BLUE : "#E2E8F0", borderRadius: 2 }} />}</div>))}
               </div>
               <SituationBox situation={situation} />
