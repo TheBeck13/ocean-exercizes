@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  base: '/ocean-exercizes/',
   plugins: [react()],
   build: {
     // Single chunk for small apps — avoids extra round trips
