@@ -41,39 +41,90 @@ export default function KeywordRanking({ groups, texts = [], topN = 10, title, e
   }
 
   const cols = corpusData.length;
-  const maxWeight = Math.max(...corpusData.flatMap(g => g.keywords.map(k => k.weight)), 0.0001);
+  const hasAnyLabel = corpusData.some(g => !!g.label);
 
   return (
     <div style={styles.wrapper}>
       {title && <div style={styles.title}>{title}</div>}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}>
-        {corpusData.map((g, i) => (
-          <div key={i}>
-            {g.label && (
-              <div style={{ fontSize: 12, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                {g.label}
-              </div>
-            )}
-            <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-              {g.keywords.map((k, idx) => (
-                <li key={k.word} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, width: 20, textAlign: "right", flexShrink: 0 }}>
-                    {idx + 1}.
-                  </span>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#111827", minWidth: 80 }}>
-                    {k.word}
-                  </span>
-                  <div style={{ flex: 1, height: 6, background: "#F3F4F6", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${(k.weight / maxWeight) * 100}%`, background: BLUE, borderRadius: 3 }} />
-                  </div>
-                  <span style={{ fontSize: 11, color: "#6B7280", fontWeight: 600, minWidth: 34, textAlign: "right" }}>
-                    {k.weight.toFixed(2)}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        ))}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+          gap: 20,
+          alignItems: "start",
+        }}
+      >
+        {corpusData.map((g, i) => {
+          const colMax = Math.max(...g.keywords.map(k => k.weight), 0.0001);
+          return (
+            <div key={i} style={{ minWidth: 0 }}>
+              {hasAnyLabel && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: BLUE,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginBottom: 10,
+                    minHeight: "2.4em",
+                    lineHeight: 1.2,
+                    display: "flex",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  {g.label || ""}
+                </div>
+              )}
+              <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+                {g.keywords.map((k, idx) => (
+                  <li key={k.word} style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr) auto", alignItems: "center", columnGap: 8 }}>
+                    <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 700, textAlign: "right" }}>
+                      {idx + 1}.
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: "#111827",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          marginBottom: 3,
+                        }}
+                        title={k.word}
+                      >
+                        {k.word}
+                      </div>
+                      <div style={{ height: 4, background: "#F1F5F9", borderRadius: 2, overflow: "hidden" }}>
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${(k.weight / colMax) * 100}%`,
+                            background: BLUE,
+                            borderRadius: 2,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "#6B7280",
+                        fontWeight: 600,
+                        textAlign: "right",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {k.weight.toFixed(2)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

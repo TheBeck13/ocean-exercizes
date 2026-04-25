@@ -1,80 +1,160 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import cloud from "d3-cloud";
 import { buildWordCloudData } from "../../lib/textProcessing/index.js";
 
 const FONT = "'Source Sans 3','Segoe UI',system-ui,sans-serif";
 
 /*
-  Tag-cloud layout: più leggibile e responsive di una nuvola a spirale
-  per corpus piccoli (<100 parole), specialmente su mobile.
+  Wordle-style word cloud: spiral packing with d3-cloud, SVG output.
 
   Props:
-    texts         — string[] obbligatorio (corpus da analizzare)
-    maxWords      — numero di parole da mostrare (default 50)
-    palette       — "byfreq" (quartili) | "bold5" | "brand" | "wb" | "bw"
-    minFontSize   — px (default 14)
-    maxFontSize   — px (default 44)
-    uppercase     — maiuscolo (default false, come wcloudparams)
-    title         — titolo opzionale sopra la nuvola
-    extraStopwords — parole aggiuntive da ignorare (es. nome del coachee)
+    texts          — string[] obbligatorio (corpus da analizzare)
+    maxWords       — numero di parole da mostrare (default 60)
+    palette        — "byfreq" (quartili) | "bold5" | "brand" | "wb" | "bw"
+    minFontSize    — px (default 14)
+    maxFontSize    — px (default 64)
+    uppercase      — maiuscolo (default false)
+    title          — titolo opzionale sopra la nuvola
+    extraStopwords — parole aggiuntive da ignorare
+    height         — altezza area cloud in px (default 360)
+    rotate         — "mixed" (0/90) | "horizontal" (solo 0) | "scatter" (-30..30)
 */
 export default function WordCloud({
   texts = [],
-  maxWords = 50,
+  maxWords = 60,
   palette = "byfreq",
   minFontSize = 14,
-  maxFontSize = 44,
+  maxFontSize = 64,
   uppercase = false,
   title,
   extraStopwords = [],
   emptyLabel = "Non ci sono abbastanza parole da mostrare.",
+  height = 360,
+  rotate = "mixed",
 }) {
   const data = useMemo(
     () => buildWordCloudData(texts, { maxWords, palette, uppercase, extraStopwords }),
     [texts, maxWords, palette, uppercase, extraStopwords]
   );
 
+  const containerRef = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [placed, setPlaced] = useState([]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setWidth(Math.max(0, Math.floor(e.contentRect.width)));
+    });
+    ro.observe(el);
+    setWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!width || data.length === 0) {
+      setPlaced([]);
+      return;
+    }
+
+    const rotateFn = pickRotateFn(rotate);
+    const words = data.map((d) => ({
+      text: d.word,
+      size: minFontSize + d.weight * (maxFontSize - minFontSize),
+      freq: d.freq,
+      color: d.color,
+    }));
+
+    let cancelled = false;
+    cloud()
+      .size([width, height])
+      .words(words)
+      .padding(2)
+      .rotate(rotateFn)
+      .font(FONT)
+      .fontWeight((w) => 600 + Math.round(((w.size - minFontSize) / Math.max(1, maxFontSize - minFontSize)) * 300))
+      .fontSize((w) => w.size)
+      .spiral("archimedean")
+      .random(seededRandom(hashStrings(words.map((w) => w.text))))
+      .on("end", (out) => {
+        if (!cancelled) setPlaced(out);
+      })
+      .start();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data, width, height, minFontSize, maxFontSize, rotate]);
+
+  const bg = palette === "wb" ? "#111827" : "#FFF";
+  const defaultColor = palette === "wb" ? "#FFF" : "#111827";
+
   if (data.length === 0) {
     return (
-      <div style={{ ...styles.wrapper, minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ ...styles.wrapper, background: bg, minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <span style={{ color: "#9CA3AF", fontSize: 13, fontStyle: "italic" }}>{emptyLabel}</span>
       </div>
     );
   }
 
-  const bg = palette === "wb" ? "#111827" : "#FFF";
-  const defaultColor = palette === "wb" ? "#FFF" : "#111827";
-
   return (
-    <div style={{ ...styles.wrapper, background: bg }}>
+    <div ref={containerRef} style={{ ...styles.wrapper, background: bg }}>
       {title && <div style={{ ...styles.title, color: palette === "wb" ? "#FFF" : "#111827" }}>{title}</div>}
-      <div style={styles.cloud} role="list" aria-label="Word cloud">
-        {data.map(({ word, freq, color, weight }) => {
-          const size = minFontSize + weight * (maxFontSize - minFontSize);
-          return (
-            <span
-              key={word}
-              role="listitem"
-              title={`${word} — ${freq} occorrenze`}
-              style={{
-                fontSize: size,
-                fontWeight: 600 + Math.round(weight * 300), // 600..900
-                color: color || defaultColor,
-                lineHeight: 1.15,
-                padding: "2px 4px",
-                whiteSpace: "nowrap",
-                cursor: "default",
-                transition: "transform 0.15s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-            >
-              {word}
-            </span>
-          );
-        })}
+      <div style={{ width: "100%", height, position: "relative" }} aria-label="Word cloud" role="img">
+        {width > 0 && placed.length > 0 && (
+          <svg width={width} height={height} viewBox={`${-width / 2} ${-height / 2} ${width} ${height}`} style={{ display: "block" }}>
+            <g>
+              {placed.map((w) => (
+                <text
+                  key={w.text}
+                  textAnchor="middle"
+                  transform={`translate(${w.x},${w.y}) rotate(${w.rotate})`}
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: w.size,
+                    fontWeight: w.weight || 700,
+                    fill: w.color || defaultColor,
+                    cursor: "default",
+                    userSelect: "none",
+                  }}
+                >
+                  <title>{`${w.text} — ${w.freq} occorrenze`}</title>
+                  {w.text}
+                </text>
+              ))}
+            </g>
+          </svg>
+        )}
       </div>
     </div>
   );
+}
+
+function pickRotateFn(mode) {
+  if (mode === "horizontal") return () => 0;
+  if (mode === "scatter") return () => Math.round((Math.random() - 0.5) * 60);
+  // "mixed": ~75% orizzontale, ~25% verticale (-90), come nei Wordle classici
+  return () => (Math.random() < 0.75 ? 0 : -90);
+}
+
+function hashStrings(arr) {
+  let h = 2166136261;
+  for (const s of arr) {
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+  }
+  return h >>> 0;
+}
+
+function seededRandom(seed) {
+  let s = seed || 1;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0xffffffff;
+  };
 }
 
 const styles = {
@@ -90,13 +170,5 @@ const styles = {
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: 12,
-  },
-  cloud: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "6px 10px",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 120,
   },
 };
