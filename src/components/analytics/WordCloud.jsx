@@ -32,9 +32,18 @@ export default function WordCloud({
   height = 360,
   rotate = "mixed",
 }) {
+  // Hash stabile sul CONTENUTO (non sulla reference) di texts/extraStopwords:
+  // così un parent che ricrea l'array a ogni render non invalida la memoization.
+  const inputsKey = useMemo(
+    () => `${hashStrings(texts)}|${hashStrings(extraStopwords)}|${maxWords}|${palette}|${uppercase ? 1 : 0}`,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hashStrings(texts), hashStrings(extraStopwords), maxWords, palette, uppercase]
+  );
+
   const data = useMemo(
     () => buildWordCloudData(texts, { maxWords, palette, uppercase, extraStopwords }),
-    [texts, maxWords, palette, uppercase, extraStopwords]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inputsKey]
   );
 
   const containerRef = useRef(null);
@@ -44,19 +53,36 @@ export default function WordCloud({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let lastW = 0;
     const ro = new ResizeObserver((entries) => {
-      for (const e of entries) setWidth(Math.max(0, Math.floor(e.contentRect.width)));
+      for (const e of entries) {
+        const w = Math.max(0, Math.floor(e.contentRect.width));
+        // Ignora micro-oscillazioni (es. scrollbar di 1-2px) che farebbero
+        // ripartire il layout in loop con il proprio output.
+        if (Math.abs(w - lastW) < 2) continue;
+        lastW = w;
+        setWidth(w);
+      }
     });
     ro.observe(el);
-    setWidth(el.clientWidth);
+    lastW = el.clientWidth;
+    setWidth(lastW);
     return () => ro.disconnect();
   }, []);
+
+  // Chiave di layout stabile: dipende solo da contenuto + dimensioni.
+  const layoutKey = `${inputsKey}|${width}|${height}|${minFontSize}|${maxFontSize}|${rotate}`;
+  const lastLayoutKeyRef = useRef("");
 
   useEffect(() => {
     if (!width || data.length === 0) {
       setPlaced([]);
+      lastLayoutKeyRef.current = "";
       return;
     }
+    // Evita di rilanciare d3-cloud se la chiave è identica all'ultima eseguita.
+    if (lastLayoutKeyRef.current === layoutKey) return;
+    lastLayoutKeyRef.current = layoutKey;
 
     const rotateFn = pickRotateFn(rotate);
     const words = data.map((d) => ({
@@ -67,7 +93,7 @@ export default function WordCloud({
     }));
 
     let cancelled = false;
-    cloud()
+    const layout = cloud()
       .size([width, height])
       .words(words)
       .padding(2)
@@ -79,13 +105,16 @@ export default function WordCloud({
       .random(seededRandom(hashStrings(words.map((w) => w.text))))
       .on("end", (out) => {
         if (!cancelled) setPlaced(out);
-      })
-      .start();
+      });
+
+    layout.start();
 
     return () => {
       cancelled = true;
+      layout.stop();
     };
-  }, [data, width, height, minFontSize, maxFontSize, rotate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutKey]);
 
   const bg = palette === "wb" ? "#111827" : "#FFF";
   const defaultColor = palette === "wb" ? "#FFF" : "#111827";
@@ -139,12 +168,17 @@ function pickRotateFn(mode) {
 }
 
 function hashStrings(arr) {
+  if (!arr || arr.length === 0) return 0;
   let h = 2166136261;
   for (const s of arr) {
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
+    const str = typeof s === "string" ? s : String(s);
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
       h = (h * 16777619) >>> 0;
     }
+    // separatore tra elementi per evitare collisioni "ab"+"c" vs "a"+"bc"
+    h ^= 0x1f;
+    h = (h * 16777619) >>> 0;
   }
   return h >>> 0;
 }
