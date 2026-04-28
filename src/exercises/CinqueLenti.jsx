@@ -145,13 +145,13 @@ function ClassAnalytics({ sessionData, lenses }) {
           title="Emozioni per lente — come cambia lo sguardo"
         />
       )}
-      {Object.keys(groupsByLens).length >= 2 && (
-        <KeywordRanking
-          groups={groupsByLens}
-          title="Top concetti per lente (TF-IDF)"
-          topN={5}
-        />
-      )}
+      {/*{Object.keys(groupsByLens).length >= 2 && (*/}
+      {/*  <KeywordRanking*/}
+      {/*    groups={groupsByLens}*/}
+      {/*    title="Top concetti per lente (TF-IDF)"*/}
+      {/*    topN={5}*/}
+      {/*  />*/}
+      {/*)}  */}
     </div>
   );
 }

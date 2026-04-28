@@ -561,11 +561,11 @@ export default function DalVagoAlloSMART({ onHome }) {
                   palette="byfreq"
                   maxWords={35}
                 />
-                <KeywordRanking
-                  texts={allTexts}
-                  title="Top concetti (TF-IDF)"
-                  topN={8}
-                />
+                {/*<KeywordRanking*/}
+                {/*  texts={allTexts}*/}
+                {/*  title="Top concetti (TF-IDF)"*/}
+                {/*  topN={8}*/}
+                {/*/>*/}
               </div>
             );
           })()}

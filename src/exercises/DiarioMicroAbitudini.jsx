@@ -423,13 +423,13 @@ export default function DiarioMicroAbitudini({ onHome }) {
                   palette="byfreq"
                   maxWords={40}
                 />
-                {Object.keys(byMode).length >= 2 && (
-                  <KeywordRanking
-                    groups={byMode}
-                    title="Concetti dominanti per modalità comunicativa"
-                    topN={6}
-                  />
-                )}
+                {/*{Object.keys(byMode).length >= 2 && (*/}
+                {/*  <KeywordRanking*/}
+                {/*    groups={byMode}*/}
+                {/*    title="Concetti dominanti per modalità comunicativa"*/}
+                {/*    topN={6}*/}
+                {/*  />*/}
+                {/*)}*/}
                 {sessionDocs.length >= 3 && (
                   <SimilarityMatrix
                     documents={sessionDocs}
